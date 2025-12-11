@@ -21,57 +21,45 @@ let ws = null;
 let reconnectTimer = null;
 
 function start() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
   console.log("MarketEar: Connecting to Binance…", endpoint);
 
   ws = new WebSocket(endpoint);
 
   ws.onopen = () => {
     console.log("MarketEar: Binance WS open");
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   };
 
   ws.onmessage = (ev) => {
     try {
       const data = JSON.parse(ev.data);
-      // For ticker stream, event fields are like: s (symbol), c (close price)
-      const symbol = (data.s || "").toLowerCase(); // e.g. 'BTCUSDT' -> 'btcusdt'
-      const priceStr = data.c || data.p || data.c; // prefer c (last price)
-      const price = parseFloat(priceStr);
-      if (!symbol || !Number.isFinite(price)) return;
+      const symbol = (data.s || "").toLowerCase();
+      const price = parseFloat(data.c);
+      if (!symbol || !price) return;
 
-      // find asset by mapping
       const assetKey = Object.keys(idToSymbol).find(k => idToSymbol[k] === symbol);
       if (!assetKey) return;
+
       const asset = window.assets.find(a => a.id === assetKey);
       if (!asset) return;
 
       asset.prevPrice = asset.price || price;
       asset.price = price;
+
       if (!asset.high || price > asset.high) asset.high = price;
       if (!asset.low || price < asset.low) asset.low = price;
 
-      // small console log for debugging
       console.log(`MarketEar: ${asset.name} updated → ${price}`);
 
-      // call page UI updater if present
-      try { if (typeof updateUI === "function") updateUI(); } catch(e){}
-    } catch(err) {
-      // ignore parse errors
-      // console.error("MarketEar parse error", err);
-    }
+      if (typeof updateUI === "function") updateUI();
+    } catch (err) {}
   };
 
-  ws.onerror = (err) => {
-    console.warn("MarketEar: WS error", err);
-  };
+  ws.onerror = (err) => console.warn("MarketEar: WS error", err);
 
   ws.onclose = () => {
     console.warn("MarketEar: WS closed — reconnecting in 3s");
-    if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(start, 3000);
   };
 }
 
-// start immediately
 start();
