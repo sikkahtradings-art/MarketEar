@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarketEar Pro | Eyes-Free Audio Trading</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* Base styles for the dark theme (Binance-inspired) - RESTORED */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1e23; /* Dark background */
+            color: #e2e8f0; /* Light text */
+        }
+        /* Custom card style */
+        .market-card {
+            background-color: #242930;
+            border: 1px solid #30363d;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        /* Binance-inspired accent color - Yellow/Gold - RESTORED */
+        .accent-yellow {
+            color: #fcd34d; /* yellow-400 */
+        }
+        .bg-accent-yellow {
+            background-color: #fcd34d;
+        }
+        .hover\:bg-accent-yellow:hover {
+            background-color: #facc15; /* yellow-500 */
+        }
+        
+        /* Toggle Switch Styling */
+        .custom-toggle:checked + .slider {
+            background-color: #fcd34d; /* Yellow accent */
+        }
+        .custom-toggle:checked + .slider:before {
+            transform: translateX(1.25rem);
+            background-color: #1e2126; /* Dark thumb */
+        }
+        .slider {
+            background-color: #4b5563; /* Gray when off */
+            transition: .4s;
+        }
+        .slider:before {
+            content: "";
+            position: absolute;
+            height: 1rem;
+            width: 1rem;
+            left: 0.25rem;
+            bottom: 0.25rem;
+            background-color: white;
+            transition: .4s;
+            border-radius: 9999px;
+        }
+
+        /* Set the 'M' color (Emerald Green) and 'E' color (Rose Red) */
+        .logo-m {
+            fill: #10b981; /* Tailwind emerald-500 */
+        }
+        .logo-e {
+            fill: #f43f5e; /* Tailwind rose-500 */
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Header Section - RESTORED Dark Gray -->
+    <header class="bg-gray-900 border-b border-gray-700 shadow-xl sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center mb-4 md:mb-0">
+                <!-- LOGO: ME (M Green, E Red) on BRIGHT YELLOW Background -->
+                <div class="bg-yellow-400 p-2 rounded-lg mr-3 shadow-lg border border-yellow-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 28" class="w-12 h-8">
+                        <!-- M (Market) - Emerald Green -->
+                        <text x="-2" y="25" font-family="Inter, sans-serif" font-size="36" font-weight="900" class="logo-m">M</text>
+                        <!-- E (Ear/Engine) - Rose Red -->
+                        <text x="23" y="25" font-family="Inter, sans-serif" font-size="36" font-weight="900" class="logo-e">E</text>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-white leading-tight">MarketEar Pro</h1>
+                    <!-- Description Capitalized -->
+                    <p class="text-sm text-gray-400 font-medium">Eyes Free And Handsfree Price Announcement Engine</p>
+                </div>
+            </div>
+            
+            <!-- Main Action Button and Status -->
+            <div class="flex items-center space-x-4">
+                <!-- Status Badge (RESTORED Dark/Blue Status Scheme) -->
+                <div id="status-badge" class="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-700 flex items-center transition-all duration-300">
+                    <span class="w-3 h-3 rounded-full bg-yellow-400 mr-3 animate-pulse" id="status-dot"></span>
+                    <div class="flex flex-col">
+                        <span id="status-text" class="text-white font-bold leading-tight">Initializing...</span>
+                        <!-- New element for frequency text -->
+                        <span id="frequency-text" class="text-xs text-gray-400 mt-0.5">--</span>
+                        <!-- New element for countdown text -->
+                        <span id="countdown-text" class="text-xs font-medium mt-0.5 hidden"></span>
+                    </div>
+                </div>
+                <!-- Updated Button Text (RESTORED Yellow Accent) -->
+                <button id="toggle-btn" class="bg-accent-yellow hover:bg-yellow-500 text-gray-900 px-8 py-3 rounded-xl font-bold text-lg shadow-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Loading Voice...
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+
+        <!-- Metric Cards Grid with Integrated Toggles -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold text-white mb-2">Active Portfolio</h2>
+            <p class="text-gray-400 text-sm mb-6">Toggle which assets are included in the live audio announcement cycle. Data updates realtime.</p>
+        </section>
+
+        <section id="assets-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <!-- Cards injected by JS -->
+        </section>
+
+        <!-- Settings & Configuration -->
+        <section>
+            <div class="bg-gray-800 market-card rounded-xl mb-6 p-6">
+                <details class="group">
+                    <summary class="flex justify-between items-center cursor-pointer list-none">
+                        <h3 class="text-xl font-bold accent-yellow">⚙️ Audio & Content Settings</h3>
+                        <span class="text-gray-400 group-open:rotate-180 transform transition duration-300">
+                            <span class="text-2xl">+</span>
+                        </span>
+                    </summary>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6 border-t border-gray-700 mt-4">
+                        
+                        <!-- Audio Configuration -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-sky-500 mb-4">Earing Controls</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Update Frequency</label>
+                                    <select id="interval-select" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-sky-500 focus:border-sky-500">
+                                        <option value="15000">15 Seconds</option>
+                                        <option value="30000" selected>30 Seconds</option>
+                                        <option value="60000">1 Minute</option>
+                                        <option value="120000">2 Minutes</option>
+                                        <option value="300000">5 Minutes</option>
+                                        <option value="600000">10 Minutes</option>
+                                        <option value="900000">15 Minutes</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Voice Preference</label>
+                                    <select id="voice-select" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-sky-500 focus:border-sky-500">
+                                        <option value="female" selected>Female / Clear</option>
+                                        <option value="male">Male / Deep</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Content Options -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-sky-500 mb-4">Content Options</h4>
+                            <div class="space-y-4">
+                                
+                                <!-- Toggle: Full Precision (Updated: Default OFF) -->
+                                <div class="flex items-center justify-between py-2 border-b border-gray-700">
+                                    <span class="text-sm font-medium text-gray-300">Full Price Precision (Include Decimals)</span>
+                                    <label class="relative inline-block w-10 h-6 cursor-pointer">
+                                        <input type="checkbox" id="full-precision" class="sr-only custom-toggle">
+                                        <span class="slider absolute inset-0 rounded-full"></span>
+                                    </label>
+                                </div>
+
+                                <!-- Toggle: Brief Mode - NOW CHECKED BY DEFAULT -->
+                                <div class="flex items-center justify-between py-2 border-b border-gray-700">
+                                    <span class="text-sm font-medium text-gray-300">Price Only (Brief Mode)</span>
+                                    <label class="relative inline-block w-10 h-6 cursor-pointer">
+                                        <input type="checkbox" id="brief-mode" checked class="sr-only custom-toggle">
+                                        <span class="slider absolute inset-0 rounded-full"></span>
+                                    </label>
+                                </div>
+                                
+                                <div class="p-4 bg-gray-900 rounded-lg border border-gray-700 text-xs text-gray-400">
+                                    <p>Full Mode (Detailed) includes price and change magnitude.</p>
+                                    <p class="mt-1">Brief Mode only announces the asset and price.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </details>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-500 py-4 text-center text-xs border-t border-gray-800">
+        <p>MarketEar Pro | Simulated Market Data. For informational purposes only.</p>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        /**
+         * MarketEar Logic Core
+         * Handles Simulation and Audio (Web Speech API)
+         */
+        
+        // --- 1. State Management ---
+        const STATE = {
+            isRunning: false,
+            voiceReady: false,
+            intervalMs: 30000,
+            briefMode: true, // DEFAULT: Set to true for Brief Mode (Price Only)
+            fullPrecision: false, // UPDATED: Set to false by default
+            voiceGender: 'female',
+            selectedAssets: ['xauusd'], // Only Gold (xauusd) selected by default
+            timers: {
+                sim: null,
+                audio: null
+            },
+            remainingTime: 0, // Time in milliseconds until next announcement
+        };
+
+        // Simulated Data Model - Names reverted back to friendly names
+        let assets = [
+            { id: 'xauusd', name: 'Gold', symbol: 'XAU/USD', price: 2350.50, prevPrice: 2350.50, high: 2355.00, low: 2340.00 },
+            { id: 'ethusd', name: 'Etherium', symbol: 'ETH/USD', price: 3800.75, prevPrice: 3800.75, high: 3850.00, low: 3750.00 },
+            { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 65000.00, prevPrice: 65000.00, high: 65500.00, low: 64500.00 }
+        ];
+
+        let voices = [];
+        let synth = window.speechSynthesis;
+
+        // --- 2. DOM Elements ---
+        const els = {
+            grid: document.getElementById('assets-grid'),
+            toggleBtn: document.getElementById('toggle-btn'),
+            statusBadge: document.getElementById('status-badge'),
+            statusDot: document.getElementById('status-dot'),
+            statusText: document.getElementById('status-text'),
+            frequencyText: document.getElementById('frequency-text'),
+            countdownText: document.getElementById('countdown-text'), 
+            intervalSelect: document.getElementById('interval-select'),
+            voiceSelect: document.getElementById('voice-select'),
+            briefMode: document.getElementById('brief-mode'),
+            fullPrecision: document.getElementById('full-precision'),
+        };
+
+        // --- 3. Utility Functions ---
+        
+        // Formats milliseconds to a human-readable string (e.g., "1m 30s" or "15s")
+        function formatTime(ms) {
+            const totalSeconds = Math.ceil(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            }
+            return `${seconds}s`;
+        }
+
+        // Resets the internal countdown time to the full interval and updates display
+        function resetCountdown() {
+            STATE.remainingTime = STATE.intervalMs; 
+            els.countdownText.innerText = `Next in: ${formatTime(STATE.remainingTime)}`;
+            els.countdownText.classList.remove('hidden'); 
+            els.countdownText.classList.remove('text-red-400');
+            els.countdownText.classList.add('text-emerald-300');
+        }
+
+        // --- 4. Initialization & Settings ---
+        function init() {
+            renderAssets();
+            setupListeners();
+            initVoice();
+            
+            // Start simulation loop (visuals and countdown update every second)
+            STATE.timers.sim = setInterval(simulateMarket, 1000);
+        }
+
+        function setupListeners() {
+            // Main Toggle
+            els.toggleBtn.addEventListener('click', toggleAudio);
+
+            // Settings Listeners
+            els.intervalSelect.addEventListener('change', updateSettings);
+            els.voiceSelect.addEventListener('change', updateSettings);
+            els.briefMode.addEventListener('change', updateSettings);
+            els.fullPrecision.addEventListener('change', updateSettings);
+            
+            // Initial setting update to set the correct button text and frequency text
+            updateSettings();
+        }
+
+        function updateSettings() {
+            STATE.intervalMs = parseInt(els.intervalSelect.value);
+            STATE.voiceGender = els.voiceSelect.value;
+            STATE.briefMode = els.briefMode.checked;
+            STATE.fullPrecision = els.fullPrecision.checked;
+            
+            // Get the human-readable text for frequency
+            const intervalText = els.intervalSelect.options[els.intervalSelect.selectedIndex].text;
+            
+            // Update the frequency text element
+            els.frequencyText.innerText = `Announcement: Every ${intervalText}`;
+
+            // Update selected assets from toggles
+            STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(c => c.value);
+
+            // If audio is running, restart the timer with the new interval and reset countdown
+            if (STATE.isRunning) {
+                restartAudioTimer();
+                resetCountdown(); 
+            }
+
+            // Update button text
+            els.toggleBtn.innerText = STATE.isRunning 
+                ? "Stop Earing" 
+                : `Start Earing (Every ${intervalText})`;
+        }
+
+        // --- 5. Core Logic: Simulation ---
+        function simulateMarket() {
+            assets.forEach(asset => {
+                asset.prevPrice = asset.price;
+                const move = (Math.random() - 0.5) * 0.002;
+                asset.price = asset.price * (1 + move);
+                
+                const precision = asset.id === 'btcusd' ? 2 : 2;
+                asset.price = parseFloat(asset.price.toFixed(precision));
+
+                if (asset.price > asset.high) asset.high = asset.price;
+                if (asset.price < asset.low) asset.low = asset.price;
+            });
+
+            // Countdown Logic (Runs every 1 second)
+            if (STATE.isRunning) {
+                // Decrement by 1000ms (1 second)
+                STATE.remainingTime = Math.max(0, STATE.remainingTime - 1000);
+                
+                // Update countdown display
+                els.countdownText.innerText = `Next in: ${formatTime(STATE.remainingTime)}`;
+
+                // Flash red if under 5 seconds remaining
+                if (STATE.remainingTime <= 5000 && STATE.remainingTime > 0) {
+                    els.countdownText.classList.remove('text-emerald-300');
+                    els.countdownText.classList.add('text-red-400');
+                } else if (STATE.remainingTime > 5000) {
+                    els.countdownText.classList.remove('text-red-400');
+                    els.countdownText.classList.add('text-emerald-300');
+                }
+            }
+
+            updateUI();
+        }
+
+        // --- 6. UI Rendering ---
+        function renderAssets() {
+            els.grid.innerHTML = assets.map(asset => `
+                <div id="card-${asset.id}" class="market-card p-6 rounded-xl transition-all duration-300 border-l-4 border-gray-600 hover:shadow-2xl hover:bg-[#2c323a]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-white">${asset.name}</h3>
+                        <!-- Integrated Toggle for Portfolio Selection -->
+                        <label class="relative inline-block w-10 h-6 cursor-pointer">
+                            <!-- Check only if ID is in STATE.selectedAssets -->
+                            <input type="checkbox" id="toggle-${asset.id}" value="${asset.id}" ${STATE.selectedAssets.includes(asset.id) ? 'checked' : ''} 
+                                class="sr-only custom-toggle asset-toggle">
+                            <span class="slider absolute inset-0 rounded-full"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <span class="text-4xl font-extrabold accent-yellow" id="price-${asset.id}">
+                            ${asset.price.toFixed(2)}
+                        </span>
+                        <span class="text-lg text-gray-500 ml-2">${asset.symbol}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center pt-4 border-t border-gray-700">
+                        <div class="text-sm font-semibold" id="change-text-${asset.id}">--</div>
+                        <div class="text-xs text-gray-500 space-x-2">
+                            <span>H: <span id="high-${asset.id}">${asset.high.toFixed(2)}</span></span>
+                            <span>L: <span id="low-${asset.id}">${asset.low.toFixed(2)}</span></span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Bind listeners for asset toggles
+            document.querySelectorAll('.asset-toggle').forEach(cb => {
+                cb.addEventListener('change', updateSettings);
+            });
+        }
+
+        function updateUI() {
+            assets.forEach(asset => {
+                const priceEl = document.getElementById(`price-${asset.id}`);
+                const changeEl = document.getElementById(`change-text-${asset.id}`);
+                const highEl = document.getElementById(`high-${asset.id}`);
+                const lowEl = document.getElementById(`low-${asset.id}`);
+                const cardEl = document.getElementById(`card-${asset.id}`);
+                
+                if (!priceEl) return; 
+
+                priceEl.innerText = asset.price.toFixed(2);
+                highEl.innerText = asset.high.toFixed(2);
+                lowEl.innerText = asset.low.toFixed(2);
+
+                const change = asset.price - asset.prevPrice;
+
+                if (Math.abs(change) > 0.001) {
+                    const isUp = change >= 0;
+                    const colorClass = isUp ? 'text-emerald-500' : 'text-rose-500';
+                    const sign = isUp ? '▲ +' : '▼ ';
+                    
+                    changeEl.className = `text-sm font-semibold ${colorClass}`;
+                    changeEl.innerText = `${sign}${Math.abs(change).toFixed(2)} (1s)`;
+
+                    cardEl.classList.remove('border-emerald-500', 'border-rose-500', 'border-gray-600');
+                    cardEl.classList.add(isUp ? 'border-emerald-500' : 'border-rose-500');
+                } else {
+                    changeEl.innerText = `0.00`;
+                    changeEl.className = `text-sm font-semibold text-gray-500`;
+                    cardEl.classList.remove('border-emerald-500', 'border-rose-500');
+                    cardEl.classList.add('border-gray-600');
+                }
+            });
+        }
+
+        // --- 7. Audio Logic (TTS) ---
+        function initVoice() {
+            const checkVoices = () => {
+                voices = synth.getVoices();
+                if (voices.length > 0) {
+                    STATE.voiceReady = true;
+                    els.toggleBtn.disabled = false;
+                    updateSettings();
+                    
+                    // Set initial ready state colors (Requested Blue Scheme)
+                    els.statusBadge.classList.add('bg-sky-900/50', 'border', 'border-sky-700');
+                    els.statusDot.classList.add('bg-sky-500', 'animate-pulse');
+                    els.statusText.classList.add('text-sky-400');
+                    els.frequencyText.classList.add('text-sky-300');
+                    
+                    // Remove initial temporary classes
+                    els.statusBadge.classList.remove('bg-gray-700');
+                    els.statusDot.classList.remove('bg-yellow-400');
+                    els.statusText.classList.remove('text-white');
+
+                    els.statusText.innerText = "Ready";
+                }
+            };
+
+            if ('speechSynthesis' in window) {
+                synth.onvoiceschanged = checkVoices;
+                checkVoices();
+            } else {
+                els.toggleBtn.innerText = "Audio Not Supported"; 
+                els.statusText.innerText = "TTS Error";
+            }
+        }
+
+        function toggleAudio() {
+            if (!STATE.voiceReady) return;
+
+            if (STATE.selectedAssets.length === 0 && !STATE.isRunning) {
+                els.statusText.innerText = "Select Assets!";
+                setTimeout(() => updateSettings(), 3000);
+                return;
+            }
+
+            STATE.isRunning = !STATE.isRunning;
+
+            if (STATE.isRunning) {
+                // UI State: Active (Red for Stop Button)
+                els.toggleBtn.innerText = "Stop Earing"; 
+                els.toggleBtn.classList.remove('bg-accent-yellow', 'hover:bg-yellow-500');
+                els.toggleBtn.classList.add('bg-rose-600', 'hover:bg-rose-700');
+                
+                // Status Badge Colors: Active (Green/Emerald)
+                els.statusBadge.classList.remove('bg-sky-900/50', 'border-sky-700'); // Remove inactive state
+                els.statusBadge.classList.add('bg-emerald-900/50', 'border', 'border-emerald-700');
+                els.statusDot.classList.remove('bg-sky-500'); // Remove inactive state
+                els.statusDot.classList.add('bg-emerald-500', 'animate-pulse');
+                els.statusText.classList.remove('text-sky-400'); // Remove inactive state
+                els.statusText.classList.add('text-emerald-400'); 
+                els.frequencyText.classList.remove('text-sky-300'); // Remove inactive state
+                els.frequencyText.classList.add('text-emerald-300');
+                
+                els.statusText.innerText = "Live Earing";
+
+                // Start Timer & Speak immediately
+                startAudioTimer();
+                speakUpdate(); // Speak immediately and reset countdown
+                
+            } else {
+                // UI State: Inactive (Ready) - Blue/Sky Scheme
+                updateSettings(); 
+                els.toggleBtn.classList.add('bg-accent-yellow', 'hover:bg-yellow-500');
+                els.toggleBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700');
+
+                // Status Badge Colors: Ready (Blue/Sky)
+                els.statusBadge.classList.add('bg-sky-900/50', 'border', 'border-sky-700');
+                els.statusDot.classList.add('bg-sky-500', 'animate-pulse');
+                els.statusText.classList.add('text-sky-400');
+                els.frequencyText.classList.add('text-sky-300');
+                
+                // Remove Active (Green/Emerald) state classes
+                els.statusBadge.classList.remove('bg-emerald-900/50', 'border-emerald-700');
+                els.statusDot.classList.remove('bg-emerald-500');
+                els.statusText.classList.remove('text-emerald-400');
+                els.frequencyText.classList.remove('text-emerald-300');
+                
+                // Cleanup for robustness
+                els.statusBadge.classList.remove('bg-gray-700');
+                
+                els.statusText.innerText = "Ready";
+
+                // Hide countdown and stop Timer & Cancel Speech
+                els.countdownText.classList.add('hidden');
+                clearInterval(STATE.timers.audio);
+                synth.cancel();
+            }
+        }
+
+        function startAudioTimer() {
+            clearInterval(STATE.timers.audio);
+            // The first announcement happens immediately in toggleAudio via speakUpdate()
+            // The interval is for subsequent announcements
+            STATE.timers.audio = setInterval(speakUpdate, STATE.intervalMs);
+        }
+
+        function restartAudioTimer() {
+            if (STATE.isRunning) startAudioTimer();
+        }
+        
+        function selectVoice(gender) {
+            const preferredVoice = voices.find(v => {
+                const name = v.name.toLowerCase();
+                const lang = v.lang.toLowerCase();
+                
+                const isMaleMatch = gender === 'male' && (name.includes('male') || name.includes('man') || name.includes('joe') || name.includes('mark'));
+                const isFemaleMatch = gender === 'female' && (name.includes('female') || name.includes('woman') || name.includes('jane') || name.includes('susan'));
+                
+                return (isMaleMatch || isFemaleMatch) && lang.startsWith('en');
+            });
+
+            return preferredVoice || voices.find(v => v.lang.startsWith('en'));
+        }
+
+        function speakUpdate() {
+            if (!STATE.isRunning) return;
+            if (STATE.selectedAssets.length === 0) {
+                toggleAudio();
+                return;
+            }
+
+            synth.cancel();
+
+            let phrase = ""; 
+            
+            STATE.selectedAssets.forEach(id => {
+                const asset = assets.find(a => a.id === id);
+                if (!asset) return;
+
+                let priceText;
+                if (STATE.fullPrecision) {
+                    // Full precision: "2350 point 67"
+                    priceText = asset.price.toFixed(2).replace('.', ' point ');
+                } else {
+                    // Whole number only: "2350"
+                    // Use Math.floor() to ensure integer price when precision is off
+                    priceText = Math.floor(asset.price).toString();
+                }
+                
+                // Construct the asset announcement, ensuring it starts clean and ends with a period/space.
+                if (STATE.briefMode) {
+                    // Brief mode: "Gold at 2350. "
+                    phrase += `${asset.name} at ${priceText}. `;
+                } else {
+                    // Detailed mode: "Gold at 2350. Change up by 0.15 pips. "
+                    const change = asset.price - asset.prevPrice;
+                    const direction = change >= 0 ? 'up' : 'down';
+                    const absChange = Math.abs(change).toFixed(2);
+                    
+                    phrase += `${asset.name} at ${priceText}. Change ${direction} by ${absChange} pips. `;
+                }
+            });
+            
+            // Trim any trailing space to ensure a clean end
+            phrase = phrase.trimEnd();
+
+            const utterance = new SpeechSynthesisUtterance(phrase);
+            
+            utterance.voice = selectVoice(STATE.voiceGender);
+            utterance.rate = 0.95;
+            synth.speak(utterance);
+            
+            // Reset the countdown immediately after starting the speech
+            resetCountdown();
+        }
+
+        // Start
+        window.onload = init;
+
+    </script>
+</body>
+</html>
