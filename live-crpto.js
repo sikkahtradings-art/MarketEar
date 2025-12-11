@@ -1,72 +1,77 @@
-// MarketEar Binance Live Crypto Feed Bridge
-// Connects to Binance WebSocket (secure wss://) and updates window.assets
-
+// MarketEar Binance Live Crypto Feed Bridge (wss secure)
 console.log("MarketEar: Binance bridge initializing...");
 
-// Ensure assets array exists
-if (!window.assets) {
-    window.assets = [
-        { id: "btcusd", name: "Bitcoin", symbol: "BTC/USD", price: 0, prevPrice: 0, high: 0, low: 999999 },
-        { id: "ethusd", name: "Ethereum", symbol: "ETH/USD", price: 0, prevPrice: 0, high: 0, low: 999999 }
-    ];
-    console.log("MarketEar: window.assets created.");
+// Ensure window.assets exists (two assets only)
+if (!window.assets || !Array.isArray(window.assets)) {
+  window.assets = [
+    { id: "btcusd", name: "Bitcoin", symbol: "BTC/USD", price: 0, prevPrice: 0, high: 0, low: 999999 },
+    { id: "ethusd", name: "Ethereum", symbol: "ETH/USD", price: 0, prevPrice: 0, high: 0, low: 999999 }
+  ];
+  console.log("MarketEar: window.assets created.");
 }
 
-// Price map for quick updates
-const priceMap = {
-    btcusd: "btcusdt",
-    ethusd: "ethusdt"
-};
+// Map from asset id to Binance symbol
+const idToSymbol = { btcusd: "btcusdt", ethusd: "ethusdt" };
 
-// Start Binance WebSocket connection
-function startBinanceFeed() {
-    console.log("MarketEar: Connecting to Binance…");
+// Choose stream type: ticker gives last price in field 'c'
+const streams = "btcusdt@ticker/ethusdt@ticker";
+const endpoint = "wss://stream.binance.com:9443/ws/" + streams;
 
-    const streams = "btcusdt@ticker/ethusdt@ticker";
-    const ws = new WebSocket("wss://stream.binance.com:9443/ws/" + streams);
+let ws = null;
+let reconnectTimer = null;
 
-    ws.onopen = () => {
-        console.log("MarketEar: Binance WS open");
-    };
+function start() {
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+  console.log("MarketEar: Connecting to Binance…", endpoint);
 
-    ws.onerror = (err) => {
-        console.log("MarketEar: Binance WS error", err);
-    };
+  ws = new WebSocket(endpoint);
 
-    ws.onclose = () => {
-        console.log("MarketEar: Binance WS closed — reconnecting in 3s...");
-        setTimeout(startBinanceFeed, 3000);
-    };
+  ws.onopen = () => {
+    console.log("MarketEar: Binance WS open");
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  };
 
-    ws.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
+  ws.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      // For ticker stream, event fields are like: s (symbol), c (close price)
+      const symbol = (data.s || "").toLowerCase(); // e.g. 'BTCUSDT' -> 'btcusdt'
+      const priceStr = data.c || data.p || data.c; // prefer c (last price)
+      const price = parseFloat(priceStr);
+      if (!symbol || !Number.isFinite(price)) return;
 
-        if (!data.s || !data.c) return; // safety check
+      // find asset by mapping
+      const assetKey = Object.keys(idToSymbol).find(k => idToSymbol[k] === symbol);
+      if (!assetKey) return;
+      const asset = window.assets.find(a => a.id === assetKey);
+      if (!asset) return;
 
-        const symbol = data.s.toLowerCase(); // btcusdt / ethusdt
-        const price = parseFloat(data.c);
+      asset.prevPrice = asset.price || price;
+      asset.price = price;
+      if (!asset.high || price > asset.high) asset.high = price;
+      if (!asset.low || price < asset.low) asset.low = price;
 
-        // Find matching asset
-        const assetId = Object.keys(priceMap).find(
-            key => priceMap[key] === symbol
-        );
+      // small console log for debugging
+      console.log(`MarketEar: ${asset.name} updated → ${price}`);
 
-        if (!assetId) return;
+      // call page UI updater if present
+      try { if (typeof updateUI === "function") updateUI(); } catch(e){}
+    } catch(err) {
+      // ignore parse errors
+      // console.error("MarketEar parse error", err);
+    }
+  };
 
-        const asset = window.assets.find(a => a.id === assetId);
-        if (!asset) return;
+  ws.onerror = (err) => {
+    console.warn("MarketEar: WS error", err);
+  };
 
-        // Update asset prices
-        asset.prevPrice = asset.price || price;
-        asset.price = price;
-
-        if (price > asset.high || asset.high === 0) asset.high = price;
-        if (price < asset.low || asset.low === 0) asset.low = price;
-
-        console.log(`MarketEar: ${asset.name} updated → ${price}`);
-
-        // UI will update automatically because your main script reads window.assets
-    };
+  ws.onclose = () => {
+    console.warn("MarketEar: WS closed — reconnecting in 3s");
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(start, 3000);
+  };
 }
 
-startBinanceFeed();
+// start immediately
+start();
