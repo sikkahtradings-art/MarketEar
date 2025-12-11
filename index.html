@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MarketEar Pro | Eyes-Free Audio Trading</title>
 
-  <!-- Tailwind CDN (fine for testing) -->
+  <!-- Tailwind CDN (ok for testing) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 
@@ -15,8 +15,7 @@
     .accent-yellow{ color:#fcd34d; } .bg-accent-yellow{ background:#fcd34d; }
     .slider{ background:#4b5563; transition:.4s; }
     .slider:before{ content:""; position:absolute; height:1rem; width:1rem; left:0.25rem; bottom:0.25rem; background:#fff; transition:.4s; border-radius:9999px; }
-    /* quick Test Voice button style */
-    #__marketEarTestBtn { position:fixed; bottom:14px; right:14px; z-index:9999; padding:10px 12px; background:#facc15; color:#111; font-weight:700; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.25); }
+    #__marketEarTestBtn_visible { position:fixed; bottom:16px; left:16px; z-index:99999; padding:12px 14px; background:#10b981; color:white; font-weight:800; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.25); }
   </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -98,35 +97,25 @@
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="bg-gray-900 text-gray-500 py-4 text-center text-xs border-t border-gray-800">
     <p>MarketEar Pro | For informational purposes only.</p>
   </footer>
 
-  <!-- Application Script -->
+  <!-- MarketEar main script (global STATE, UI, TTS) -->
   <script>
+  // Make STATE global so console & bridge can access it
+  window.STATE = window.STATE || {
+    isRunning: false,
+    voiceReady: false,
+    intervalMs: 30000,
+    briefMode: true,
+    fullPrecision: false,
+    voiceGender: 'female',
+    timers: { audio: null },
+    remainingTime: 0
+  };
+
   (function(){
-    // Page state
-    const STATE = {
-      isRunning: false,
-      voiceReady: false,
-      intervalMs: 30000,
-      briefMode: true,
-      fullPrecision: false,
-      voiceGender: 'female',
-      timers: { audio: null },
-      remainingTime: 0
-    };
-
-    // Ensure global assets (bridge updates window.assets)
-    if (!window.assets || !Array.isArray(window.assets)) {
-      window.assets = [
-        { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
-        { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
-      ];
-    }
-
-    // DOM refs
     const els = {
       grid: document.getElementById('assets-grid'),
       toggleBtn: document.getElementById('toggle-btn'),
@@ -140,7 +129,15 @@
       fullPrecision: document.getElementById('full-precision')
     };
 
-    // utilities
+    // If bridge not present yet, create default assets so UI renders immediately
+    if (!window.assets || !Array.isArray(window.assets)) {
+      window.assets = [
+        { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
+      ];
+    }
+
+    // UTIL
     function formatTime(ms){
       const totalSec = Math.ceil(ms/1000);
       const m = Math.floor(totalSec/60);
@@ -148,7 +145,7 @@
       return m>0 ? `${m}m ${s}s` : `${s}s`;
     }
 
-    // render cards
+    // RENDER CARDS
     function renderAssets(){
       els.grid.innerHTML = window.assets.map(asset => `
         <div id="card-${asset.id}" class="market-card p-5 rounded-xl transition-all duration-300 border-l-4 border-gray-600">
@@ -175,7 +172,7 @@
       document.querySelectorAll('.asset-toggle').forEach(cb => cb.addEventListener('change', updateSettings));
     }
 
-    // update UI from window.assets
+    // UPDATE UI from window.assets
     function updateUI(){
       window.assets.forEach(asset => {
         const priceEl = document.getElementById(`price-${asset.id}`);
@@ -203,21 +200,19 @@
       });
     }
 
-    // settings
-    function setupListeners(){
-      els.toggleBtn.addEventListener('click', toggleAudio);
-      els.intervalSelect.addEventListener('change', () => {
-        STATE.intervalMs = parseInt(els.intervalSelect.value);
-        els.frequencyText.innerText = `Announcement: Every ${els.intervalSelect.options[els.intervalSelect.selectedIndex].text}`;
-        if (STATE.isRunning) restartAudioTimer();
-      });
-      els.voiceSelect.addEventListener('change', () => STATE.voiceGender = els.voiceSelect.value);
-      els.briefMode.addEventListener('change', () => STATE.briefMode = els.briefMode.checked);
-      els.fullPrecision.addEventListener('change', () => STATE.fullPrecision = els.fullPrecision.checked);
+    // SETTINGS
+    function updateSettings(){
+      window.STATE.intervalMs = parseInt(els.intervalSelect.value);
+      window.STATE.voiceGender = els.voiceSelect.value;
+      window.STATE.briefMode = els.briefMode.checked;
+      window.STATE.fullPrecision = els.fullPrecision.checked;
+      const intervalText = els.intervalSelect.options[els.intervalSelect.selectedIndex].text;
+      els.frequencyText.innerText = `Announcement: Every ${intervalText}`;
+      if (window.STATE.isRunning) restartAudioTimer();
+      els.toggleBtn.innerText = window.STATE.isRunning ? 'Stop Earing' : `Start Earing (Every ${intervalText})`;
     }
 
-    // TTS
-    let voices = [];
+    // TTS helpers
     let synth = window.speechSynthesis;
 
     function selectVoiceByName(name){
@@ -225,43 +220,50 @@
       return all.find(v => v.name === name) || all.find(v => v.lang && v.lang.startsWith('en')) || all[0] || null;
     }
 
+    // Speak update (exposed globally)
     function speakUpdate(){
-      if (!STATE.isRunning) return;
+      if (!window.STATE.isRunning) return;
       synth.cancel();
       let phrase = '';
       window.assets.forEach(asset => {
-        let priceText = STATE.fullPrecision ? asset.price.toFixed(2).replace('.', ' point ') : Math.floor(asset.price).toString();
-        if (STATE.briefMode) phrase += `${asset.name} at ${priceText}. `;
+        if (!asset) return;
+        let priceText = window.STATE.fullPrecision ? asset.price.toFixed(2).replace('.', ' point ') : Math.floor(asset.price).toString();
+        if (window.STATE.briefMode) phrase += `${asset.name} at ${priceText}. `;
         else {
           const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
           phrase += `${asset.name} at ${priceText}. Change ${change >= 0 ? 'up' : 'down'} by ${Math.abs(change).toFixed(2)} pips. `;
         }
       });
-      if (!phrase.trim()) return;
-      const utter = new SpeechSynthesisUtterance(phrase.trim());
+      phrase = phrase.trim();
+      if (!phrase) return;
+      const utt = new SpeechSynthesisUtterance(phrase);
       const chosen = selectVoiceByName(els.voiceSelect.value);
-      if (chosen) utter.voice = chosen;
-      utter.rate = 0.95;
-      synth.speak(utter);
+      if (chosen) utt.voice = chosen;
+      utt.rate = 0.95;
+      synth.speak(utt);
       resetCountdown();
     }
 
-    function resetCountdown(){
-      STATE.remainingTime = STATE.intervalMs;
-      els.countdownText.classList.remove('hidden');
-      els.countdownText.innerText = `Next in: ${formatTime(STATE.remainingTime)}`;
-    }
+    // Expose speakUpdate globally for console and bridge
+    window.speakUpdate = speakUpdate;
+    window.updateUI = updateUI;
 
-    function startAudioTimer(){
-      clearInterval(STATE.timers.audio);
-      STATE.timers.audio = setInterval(speakUpdate, STATE.intervalMs);
+    // Countdown & timer functions
+    function resetCountdown(){
+      window.STATE.remainingTime = window.STATE.intervalMs;
+      els.countdownText.classList.remove('hidden');
+      els.countdownText.innerText = `Next in: ${formatTime(window.STATE.remainingTime)}`;
     }
-    function restartAudioTimer(){ if (STATE.isRunning) startAudioTimer(); }
+    function startAudioTimer(){
+      clearInterval(window.STATE.timers.audio);
+      window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs);
+    }
+    function restartAudioTimer(){ if (window.STATE.isRunning) startAudioTimer(); }
 
     function toggleAudio(){
-      if (!STATE.voiceReady) return;
-      STATE.isRunning = !STATE.isRunning;
-      if (STATE.isRunning) {
+      if (!window.STATE.voiceReady) return;
+      window.STATE.isRunning = !window.STATE.isRunning;
+      if (window.STATE.isRunning) {
         els.toggleBtn.innerText = 'Stop Earing';
         els.statusText.innerText = 'Live Earing';
         startAudioTimer();
@@ -269,90 +271,94 @@
       } else {
         els.toggleBtn.innerText = 'Start Earing';
         els.statusText.innerText = 'Ready';
-        clearInterval(STATE.timers.audio);
+        clearInterval(window.STATE.timers.audio);
         synth.cancel();
         els.countdownText.classList.add('hidden');
       }
     }
 
-    // Expose updateUI so bridge can call
-    window.updateUI = updateUI;
+    // Attach event listeners
+    function setupListeners(){
+      els.toggleBtn.addEventListener('click', toggleAudio);
+      els.intervalSelect.addEventListener('change', updateSettings);
+      els.voiceSelect.addEventListener('change', updateSettings);
+      els.briefMode.addEventListener('change', updateSettings);
+      els.fullPrecision.addEventListener('change', updateSettings);
+      // initial settings populate
+      updateSettings();
+    }
 
-    // Render & init
+    // Robust voice initialization & Test button
+    function initVoiceRobust(){
+      function populateVoices(){
+        const voices = synth.getVoices() || [];
+        if (!voices.length) return;
+        els.voiceSelect.innerHTML = '';
+        const en = voices.filter(v => v.lang && v.lang.startsWith('en'));
+        const rest = voices.filter(v => !(v.lang && v.lang.startsWith('en')));
+        [...en, ...rest].forEach(v=>{
+          const op = document.createElement('option');
+          op.value = v.name;
+          op.textContent = `${v.name} — ${v.lang}`;
+          els.voiceSelect.appendChild(op);
+        });
+        window.STATE.voiceReady = true;
+        els.toggleBtn.disabled = false;
+        els.statusText.innerText = 'Ready';
+        els.statusDot.classList.remove('bg-yellow-400');
+        els.statusDot.classList.add('bg-sky-500');
+      }
+      try { populateVoices(); } catch(e){}
+      synth.onvoiceschanged = populateVoices;
+
+      // Add visible Test Voice button (if not present)
+      if (!document.getElementById('__marketEarTestBtn_visible')) {
+        const b = document.createElement('button');
+        b.id = '__marketEarTestBtn_visible';
+        b.textContent = '▶️ CLICK TO ALLOW TTS';
+        b.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:99999;padding:12px 14px;background:#10b981;color:white;font-weight:800;border-radius:10px';
+        b.onclick = () => {
+          try {
+            const voices = synth.getVoices() || [];
+            const chosen = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+            const u = new SpeechSynthesisUtterance('Market Ear test. If you hear this, T T S is allowed.');
+            if (chosen) u.voice = chosen;
+            u.rate = 0.95;
+            u.onend = () => console.log('MarketEar: test TTS ended');
+            u.onerror = (e) => console.error('MarketEar: test TTS error', e);
+            synth.cancel();
+            synth.speak(u);
+            // user gesture happened — enable controls
+            window.STATE.voiceReady = true;
+            els.toggleBtn.disabled = false;
+            els.statusText.innerText = 'Ready';
+            console.log('MarketEar: Test spoken. Now click Start Earing to begin announcements.');
+          } catch(err){
+            console.error('MarketEar: test voice failed', err);
+          }
+        };
+        document.body.appendChild(b);
+      }
+    }
+
+    // Initial render + listeners + voice init
     renderAssets();
     setupListeners();
-    els.frequencyText.innerText = `Announcement: Every ${els.intervalSelect.options[els.intervalSelect.selectedIndex].text}`;
+    initVoiceRobust();
 
-    // Robust voice init: populate voices, enable controls once user gesture occurs
-    (function initVoiceRobust(){
-      const toggleBtn = els.toggleBtn;
-      const voiceSelect = els.voiceSelect;
-      const statusText = els.statusText;
-      const statusDot = els.statusDot;
+    // Keep UI synced every second (bridge will call updateUI on message too)
+    setInterval(()=>{ try{ updateUI(); if (window.STATE.isRunning){ window.STATE.remainingTime = Math.max(0, (window.STATE.remainingTime||window.STATE.intervalMs) - 1000); els.countdownText.innerText = `Next in: ${formatTime(window.STATE.remainingTime)}`; } } catch(e){} }, 1000);
 
-      function setReady() {
-        if (toggleBtn) {
-          toggleBtn.disabled = false;
-          toggleBtn.innerText = STATE.isRunning ? 'Stop Earing' : 'Start Earing';
-        }
-        if (statusText) statusText.innerText = 'Ready';
-        if (statusDot) { statusDot.classList.remove('bg-yellow-400'); statusDot.classList.add('bg-sky-500'); }
-        STATE.voiceReady = true;
-      }
-
-      function populateVoices(){
-        const v = window.speechSynthesis.getVoices() || [];
-        if (!v || v.length === 0) return;
-        voiceSelect.innerHTML = '';
-        const en = v.filter(x => x.lang && x.lang.startsWith('en'));
-        const rest = v.filter(x => !(x.lang && x.lang.startsWith('en')));
-        [...en, ...rest].forEach(vo=>{
-          const o = document.createElement('option');
-          o.value = vo.name;
-          o.textContent = `${vo.name} — ${vo.lang}`;
-          voiceSelect.appendChild(o);
-        });
-        setReady();
-      }
-
-      try { populateVoices(); } catch(e){}
-      window.speechSynthesis.onvoiceschanged = populateVoices;
-
-      // Add Test Voice button for the first user gesture (if not present)
-      if (!document.getElementById('__marketEarTestBtn')) {
-        const tb = document.createElement('button');
-        tb.id = '__marketEarTestBtn';
-        tb.textContent = 'Test Voice';
-        tb.onclick = () => {
-          const chosen = selectVoiceByName(voiceSelect.value);
-          const utt = new SpeechSynthesisUtterance('Testing Market Ear. If you hear me, TTS is working.');
-          if (chosen) utt.voice = chosen;
-          utt.rate = 0.95;
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(utt);
-          // user gesture occurred — enable controls
-          setReady();
-        };
-        document.body.appendChild(tb);
-      }
-      // If voices already present, ensure ready
-      if ((window.speechSynthesis.getVoices() || []).length > 0) populateVoices();
-    })();
-
-    // Keep UI in sync: update every second (bridge also calls updateUI after each message)
-    setInterval(() => {
-      try { updateUI(); } catch(e){}
-      // update countdown
-      if (STATE.isRunning) {
-        STATE.remainingTime = Math.max(0, (STATE.remainingTime || STATE.intervalMs) - 1000);
-        els.countdownText.innerText = `Next in: ${formatTime(STATE.remainingTime)}`;
-      }
-    }, 1000);
+    // Expose small debug helpers
+    window.MarketEarDebug = {
+      enable: ()=>{ window.STATE.voiceReady = true; els.toggleBtn.disabled = false; console.log('MarketEarDebug: enabled'); },
+      speakNow: ()=>{ window.STATE.isRunning = true; speakUpdate(); }
+    };
 
   })();
   </script>
 
-  <!-- SINGLE LIVE BRIDGE: make sure this file exists at repo root and is correct -->
+  <!-- SINGLE LIVE BRIDGE include (must exist in repo root) -->
   <script src="live-crypto.js"></script>
 
 </body>
