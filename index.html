@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MarketEar Pro | Eyes-Free Audio Trading</title>
 
+  <!-- Manifest for PWA (no edits needed if placed at /MarketEar/manifest.json) -->
+  <link rel="manifest" href="/MarketEar/manifest.json">
+  <meta name="theme-color" content="#fcd34d">
+
   <!-- Tailwind CDN (ok for testing) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
@@ -16,6 +20,8 @@
     .slider{ background:#4b5563; transition:.4s; }
     .slider:before{ content:""; position:absolute; height:1rem; width:1rem; left:0.25rem; bottom:0.25rem; background:#fff; transition:.4s; border-radius:9999px; }
     #__marketEarTestBtn_visible { position:fixed; bottom:16px; left:16px; z-index:99999; padding:12px 14px; background:#10b981; color:white; font-weight:800; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.25); }
+    #__marketEarAllowModal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99998; }
+    #__marketEarAllowBox { background:#0b1220; border:1px solid #2a2f36; padding:20px; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:#e6eef8; max-width:420px; text-align:center; }
   </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -43,7 +49,7 @@
           </div>
         </div>
 
-        <button id="toggle-btn" class="bg-accent-yellow text-gray-900 px-6 py-2 rounded-xl font-bold disabled:opacity-50" disabled>
+        <button id="toggle-btn" aria-label="Start or stop audio announcements" class="bg-accent-yellow text-gray-900 px-6 py-2 rounded-xl font-bold disabled:opacity-50" disabled>
           Loading Voice...
         </button>
       </div>
@@ -101,6 +107,15 @@
     <p>MarketEar Pro | For informational purposes only.</p>
   </footer>
 
+  <!-- Allow-audio onboarding modal (hidden after user accepts) -->
+  <div id="__marketEarAllowModal" style="display:none">
+    <div id="__marketEarAllowBox">
+      <h3 style="font-weight:800;margin-bottom:8px">Allow Audio</h3>
+      <p style="color:#b9c6d6;margin-bottom:12px">Click the button below so your browser allows MarketEar to speak price announcements. This is required only once.</p>
+      <button id="__marketEarAllowBtn" style="background:#facc15;color:#111;padding:10px 14px;border-radius:8px;font-weight:700">▶ Enable Audio</button>
+    </div>
+  </div>
+
   <!-- MarketEar main script (global STATE, UI, TTS) -->
   <script>
   // Make STATE global so console & bridge can access it
@@ -133,7 +148,8 @@
     if (!window.assets || !Array.isArray(window.assets)) {
       window.assets = [
         { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
-        { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
+        { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'xauusd', name: 'Gold', symbol: 'XAU/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
       ];
     }
 
@@ -151,7 +167,7 @@
         <div id="card-${asset.id}" class="market-card p-5 rounded-xl transition-all duration-300 border-l-4 border-gray-600">
           <div class="flex justify-between items-center mb-3">
             <h4 class="text-lg font-bold text-white">${asset.name}</h4>
-            <label class="inline-block w-10 h-6 relative">
+            <label class="inline-block w-10 h-6 relative" aria-label="Toggle ${asset.name}">
               <input type="checkbox" class="asset-toggle absolute opacity-0" value="${asset.id}" checked>
               <span class="slider absolute inset-0 rounded-full"></span>
             </label>
@@ -225,8 +241,10 @@
       if (!window.STATE.isRunning) return;
       synth.cancel();
       let phrase = '';
+      // Only announce selected assets
+      const selected = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i => i.value);
       window.assets.forEach(asset => {
-        if (!asset) return;
+        if (!asset || selected.indexOf(asset.id) === -1) return;
         let priceText = window.STATE.fullPrecision ? asset.price.toFixed(2).replace('.', ' point ') : Math.floor(asset.price).toString();
         if (window.STATE.briefMode) phrase += `${asset.name} at ${priceText}. `;
         else {
@@ -244,7 +262,7 @@
       resetCountdown();
     }
 
-    // Expose speakUpdate globally for console and bridge
+    // Expose speakUpdate & updateUI globally
     window.speakUpdate = speakUpdate;
     window.updateUI = updateUI;
 
@@ -255,13 +273,23 @@
       els.countdownText.innerText = `Next in: ${formatTime(window.STATE.remainingTime)}`;
     }
     function startAudioTimer(){
-      clearInterval(window.STATE.timers.audio);
+      // clear existing to prevent duplicates
+      if (window.STATE.timers && window.STATE.timers.audio) {
+        clearInterval(window.STATE.timers.audio);
+        window.STATE.timers.audio = null;
+      }
       window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs);
+      // record for emergency cleanup
+      window._activeIntervals = window._activeIntervals || [];
+      window._activeIntervals.push(window.STATE.timers.audio);
     }
     function restartAudioTimer(){ if (window.STATE.isRunning) startAudioTimer(); }
 
     function toggleAudio(){
-      if (!window.STATE.voiceReady) return;
+      if (!window.STATE.voiceReady) {
+        alert('TTS not ready yet. Click the "▶ CLICK TO ALLOW TTS" button first.');
+        return;
+      }
       window.STATE.isRunning = !window.STATE.isRunning;
       if (window.STATE.isRunning) {
         els.toggleBtn.innerText = 'Stop Earing';
@@ -271,8 +299,8 @@
       } else {
         els.toggleBtn.innerText = 'Start Earing';
         els.statusText.innerText = 'Ready';
-        clearInterval(window.STATE.timers.audio);
-        synth.cancel();
+        if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
+        try{ window.speechSynthesis.cancel(); }catch(e){}
         els.countdownText.classList.add('hidden');
       }
     }
@@ -280,7 +308,9 @@
     // Attach event listeners
     function setupListeners(){
       els.toggleBtn.addEventListener('click', toggleAudio);
-      els.intervalSelect.addEventListener('change', updateSettings);
+      els.intervalSelect.addEventListener('change', () => {
+        updateSettings();
+      });
       els.voiceSelect.addEventListener('change', updateSettings);
       els.briefMode.addEventListener('change', updateSettings);
       els.fullPrecision.addEventListener('change', updateSettings);
@@ -288,7 +318,7 @@
       updateSettings();
     }
 
-    // Robust voice initialization & Test button
+    // Robust voice initialization & Test button + onboarding
     function initVoiceRobust(){
       function populateVoices(){
         const voices = synth.getVoices() || [];
@@ -311,33 +341,36 @@
       try { populateVoices(); } catch(e){}
       synth.onvoiceschanged = populateVoices;
 
-      // Add visible Test Voice button (if not present)
-      if (!document.getElementById('__marketEarTestBtn_visible')) {
-        const b = document.createElement('button');
-        b.id = '__marketEarTestBtn_visible';
-        b.textContent = '▶️ CLICK TO ALLOW TTS';
-        b.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:99999;padding:12px 14px;background:#10b981;color:white;font-weight:800;border-radius:10px';
-        b.onclick = () => {
+      // Create a visible Test Voice + Allow button (only if modal not dismissed)
+      if (!localStorage.getItem('marketEar_audio_allowed')) {
+        // show modal
+        const modal = document.getElementById('__marketEarAllowModal');
+        modal.style.display = 'flex';
+        document.getElementById('__marketEarAllowBtn').onclick = () => {
           try {
             const voices = synth.getVoices() || [];
             const chosen = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
-            const u = new SpeechSynthesisUtterance('Market Ear test. If you hear this, T T S is allowed.');
+            const u = new SpeechSynthesisUtterance('Market Ear test. If you hear this, TTS is allowed.');
             if (chosen) u.voice = chosen;
             u.rate = 0.95;
-            u.onend = () => console.log('MarketEar: test TTS ended');
-            u.onerror = (e) => console.error('MarketEar: test TTS error', e);
+            u.onend = () => { console.log('MarketEar: test TTS ended'); };
+            u.onerror = (e) => { console.error('MarketEar: test TTS error', e); };
             synth.cancel();
             synth.speak(u);
-            // user gesture happened — enable controls
+            // user gesture happened — enable controls & hide modal
+            localStorage.setItem('marketEar_audio_allowed','1');
             window.STATE.voiceReady = true;
             els.toggleBtn.disabled = false;
             els.statusText.innerText = 'Ready';
+            modal.style.display = 'none';
             console.log('MarketEar: Test spoken. Now click Start Earing to begin announcements.');
           } catch(err){
             console.error('MarketEar: test voice failed', err);
           }
         };
-        document.body.appendChild(b);
+      } else {
+        // already accepted — ensure voices populated
+        try { populateVoices(); } catch(e){}
       }
     }
 
@@ -352,14 +385,29 @@
     // Expose small debug helpers
     window.MarketEarDebug = {
       enable: ()=>{ window.STATE.voiceReady = true; els.toggleBtn.disabled = false; console.log('MarketEarDebug: enabled'); },
-      speakNow: ()=>{ window.STATE.isRunning = true; speakUpdate(); }
+      speakNow: ()=>{ window.STATE.isRunning = true; speakUpdate(); },
+      stopNow: ()=>{ window.STATE.isRunning = false; if(window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null;} window.speechSynthesis.cancel(); console.log('MarketEarDebug: stopped'); }
     };
 
   })();
   </script>
 
-  <!-- SINGLE LIVE BRIDGE include (must exist in repo root) -->
+  <!-- LIVE BRIDGE (must exist in repo root) -->
   <script src="live-crypto.js"></script>
+
+  <!-- Service worker registration (already points to /MarketEar/service-worker.js) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/MarketEar/service-worker.js')
+          .then(function(reg) {
+            console.log('MarketEar: serviceWorker registered.', reg.scope);
+          }).catch(function(err) {
+            console.warn('MarketEar: serviceWorker registration failed:', err);
+          });
+      });
+    }
+  </script>
 
 </body>
 </html>
