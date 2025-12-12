@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MarketEar Pro | Eyes-Free Audio Trading</title>
 
-  <!-- Manifest for PWA (no edits needed if placed at /MarketEar/manifest.json) -->
+  <!-- Manifest for PWA -->
   <link rel="manifest" href="/MarketEar/manifest.json">
   <meta name="theme-color" content="#fcd34d">
 
@@ -19,9 +19,7 @@
     .accent-yellow{ color:#fcd34d; } .bg-accent-yellow{ background:#fcd34d; }
     .slider{ background:#4b5563; transition:.4s; }
     .slider:before{ content:""; position:absolute; height:1rem; width:1rem; left:0.25rem; bottom:0.25rem; background:#fff; transition:.4s; border-radius:9999px; }
-    #__marketEarTestBtn_visible { position:fixed; bottom:16px; left:16px; z-index:99999; padding:12px 14px; background:#10b981; color:white; font-weight:800; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.25); }
-    #__marketEarAllowModal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99998; }
-    #__marketEarAllowBox { background:#0b1220; border:1px solid #2a2f36; padding:20px; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:#e6eef8; max-width:420px; text-align:center; }
+    .asset-toggle-visible { width:22px; height:22px; accent-color:#fcd34d; cursor:pointer; }
   </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -45,7 +43,7 @@
           <div class="flex flex-col">
             <span id="status-text" class="text-white font-bold">Initializing...</span>
             <span id="frequency-text" class="text-xs text-gray-400">--</span>
-            <span id="countdown-text" class="text-xs hidden"></span>
+            <span id="countdown-text" class="text-xs hidden mt-0.5"></span>
           </div>
         </div>
 
@@ -77,6 +75,7 @@
             <option value="30000" selected>30 Seconds</option>
             <option value="60000">1 Minute</option>
             <option value="120000">2 Minutes</option>
+            <option value="300000">5 Minutes</option>
           </select>
         </div>
         <div>
@@ -107,18 +106,20 @@
     <p>MarketEar Pro | For informational purposes only.</p>
   </footer>
 
-  <!-- Allow-audio onboarding modal (hidden after user accepts) -->
+  <!-- Allow-audio onboarding modal -->
   <div id="__marketEarAllowModal" style="display:none">
-    <div id="__marketEarAllowBox">
-      <h3 style="font-weight:800;margin-bottom:8px">Allow Audio</h3>
-      <p style="color:#b9c6d6;margin-bottom:12px">Click the button below so your browser allows MarketEar to speak price announcements. This is required only once.</p>
-      <button id="__marketEarAllowBtn" style="background:#facc15;color:#111;padding:10px 14px;border-radius:8px;font-weight:700">▶ Enable Audio</button>
+    <div id="__marketEarAllowBox" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99998;">
+      <div style="background:#0b1220; border:1px solid #2a2f36; padding:20px; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:#e6eef8; max-width:420px; text-align:center;">
+        <h3 style="font-weight:800;margin-bottom:8px">Allow Audio</h3>
+        <p style="color:#b9c6d6;margin-bottom:12px">Click the button below so your browser allows MarketEar to speak price announcements. This is required only once.</p>
+        <button id="__marketEarAllowBtn" style="background:#facc15;color:#111;padding:10px 14px;border-radius:8px;font-weight:700">▶ Enable Audio</button>
+      </div>
     </div>
   </div>
 
-  <!-- MarketEar main script (global STATE, UI, TTS) -->
+  <!-- MarketEar core logic -->
   <script>
-  // Make STATE global so console & bridge can access it
+  // Global state
   window.STATE = window.STATE || {
     isRunning: false,
     voiceReady: false,
@@ -126,11 +127,13 @@
     briefMode: true,
     fullPrecision: false,
     voiceGender: 'female',
+    selectedAssets: [],
     timers: { audio: null },
     remainingTime: 0
   };
 
   (function(){
+    // Elements
     const els = {
       grid: document.getElementById('assets-grid'),
       toggleBtn: document.getElementById('toggle-btn'),
@@ -144,7 +147,7 @@
       fullPrecision: document.getElementById('full-precision')
     };
 
-    // If bridge not present yet, create default assets so UI renders immediately
+    // If no bridge-provided assets yet, set defaults (bridge will update them)
     if (!window.assets || !Array.isArray(window.assets)) {
       window.assets = [
         { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
@@ -153,24 +156,19 @@
       ];
     }
 
-    // UTIL
-    function formatTime(ms){
-      const totalSec = Math.ceil(ms/1000);
-      const m = Math.floor(totalSec/60);
-      const s = totalSec % 60;
-      return m>0 ? `${m}m ${s}s` : `${s}s`;
-    }
+    // Utility
+    function formatTime(ms){ const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const sec=s%60; return m>0?`${m}m ${sec}s`:`${sec}s`; }
 
-    // RENDER CARDS
+    // Render asset cards (with visible checkbox toggles)
     function renderAssets(){
       els.grid.innerHTML = window.assets.map(asset => `
         <div id="card-${asset.id}" class="market-card p-5 rounded-xl transition-all duration-300 border-l-4 border-gray-600">
           <div class="flex justify-between items-center mb-3">
             <h4 class="text-lg font-bold text-white">${asset.name}</h4>
-            <label class="inline-block w-10 h-6 relative" aria-label="Toggle ${asset.name}">
-              <input type="checkbox" class="asset-toggle absolute opacity-0" value="${asset.id}" checked>
-              <span class="slider absolute inset-0 rounded-full"></span>
-            </label>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" class="asset-toggle asset-toggle-visible" value="${asset.id}" aria-label="Listen ${asset.name}">
+              <span class="text-xs text-gray-300">Listen</span>
+            </div>
           </div>
           <div class="mb-3">
             <span id="price-${asset.id}" class="text-3xl font-extrabold accent-yellow">${Number(asset.price).toFixed(2)}</span>
@@ -185,23 +183,35 @@
           </div>
         </div>
       `).join('');
-      document.querySelectorAll('.asset-toggle').forEach(cb => cb.addEventListener('change', updateSettings));
+
+      // Attach change listeners for checkboxes
+      document.querySelectorAll('.asset-toggle').forEach(cb=>{
+        cb.addEventListener('change', function(){
+          // update selectedAssets
+          window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
+          console.log('MarketEar: selectedAssets ->', window.STATE.selectedAssets);
+          // call updateSettings to refresh UI text if needed
+          updateSettings();
+        });
+      });
+      // sync initial selected list
+      window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
     }
 
-    // UPDATE UI from window.assets
+    // Update UI prices & change
     function updateUI(){
-      window.assets.forEach(asset => {
+      window.assets.forEach(asset=>{
         const priceEl = document.getElementById(`price-${asset.id}`);
+        const changeEl = document.getElementById(`change-text-${asset.id}`);
         const highEl = document.getElementById(`high-${asset.id}`);
         const lowEl = document.getElementById(`low-${asset.id}`);
-        const changeEl = document.getElementById(`change-text-${asset.id}`);
         const cardEl = document.getElementById(`card-${asset.id}`);
         if (!priceEl) return;
         priceEl.innerText = Number(asset.price || 0).toFixed(2);
         highEl && (highEl.innerText = Number(asset.high || 0).toFixed(2));
         lowEl && (lowEl.innerText = Number(asset.low || 0).toFixed(2));
         const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-        if (Math.abs(change) > 0.001) {
+        if (Math.abs(change) > 0.0001) {
           const isUp = change >= 0;
           changeEl.className = `text-sm font-semibold ${isUp ? 'text-emerald-500' : 'text-rose-500'}`;
           changeEl.innerText = (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + ' (live)';
@@ -216,120 +226,138 @@
       });
     }
 
-    // SETTINGS
+    // Update settings UI text
     function updateSettings(){
       window.STATE.intervalMs = parseInt(els.intervalSelect.value);
-      window.STATE.voiceGender = els.voiceSelect.value;
-      window.STATE.briefMode = els.briefMode.checked;
-      window.STATE.fullPrecision = els.fullPrecision.checked;
+      window.STATE.briefMode = !!els.briefMode.checked;
+      window.STATE.fullPrecision = !!els.fullPrecision.checked;
       const intervalText = els.intervalSelect.options[els.intervalSelect.selectedIndex].text;
       els.frequencyText.innerText = `Announcement: Every ${intervalText}`;
-      if (window.STATE.isRunning) restartAudioTimer();
+      // set default selection if none
+      if (!window.STATE.selectedAssets || !window.STATE.selectedAssets.length) {
+        // if none checked, default to btc & eth if exist
+        const defaultIds = window.assets.map(a=>a.id).slice(0,2);
+        document.querySelectorAll('.asset-toggle').forEach(i=>{ i.checked = defaultIds.includes(i.value); });
+        window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
+      }
+      // update toggle button text
       els.toggleBtn.innerText = window.STATE.isRunning ? 'Stop Earing' : `Start Earing (Every ${intervalText})`;
     }
 
-    // TTS helpers
-    let synth = window.speechSynthesis;
-
-    function selectVoiceByName(name){
-      const all = synth.getVoices() || [];
-      return all.find(v => v.name === name) || all.find(v => v.lang && v.lang.startsWith('en')) || all[0] || null;
-    }
-
-    // Speak update (exposed globally)
+    // TTS speak update (respects selectedAssets)
     function speakUpdate(){
-      if (!window.STATE.isRunning) return;
-      synth.cancel();
-      let phrase = '';
-      // Only announce selected assets
-      const selected = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i => i.value);
-      window.assets.forEach(asset => {
-        if (!asset || selected.indexOf(asset.id) === -1) return;
-        let priceText = window.STATE.fullPrecision ? asset.price.toFixed(2).replace('.', ' point ') : Math.floor(asset.price).toString();
-        if (window.STATE.briefMode) phrase += `${asset.name} at ${priceText}. `;
-        else {
-          const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-          phrase += `${asset.name} at ${priceText}. Change ${change >= 0 ? 'up' : 'down'} by ${Math.abs(change).toFixed(2)} pips. `;
-        }
-      });
-      phrase = phrase.trim();
-      if (!phrase) return;
-      const utt = new SpeechSynthesisUtterance(phrase);
-      const chosen = selectVoiceByName(els.voiceSelect.value);
-      if (chosen) utt.voice = chosen;
-      utt.rate = 0.95;
-      synth.speak(utt);
-      resetCountdown();
+      try {
+        if (!window.STATE || !window.STATE.isRunning) return;
+        // cancel overlapping
+        window.speechSynthesis.cancel();
+
+        const selected = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
+        if (!selected.length) { console.log('MarketEar: no assets selected — skipping speak'); return; }
+
+        const parts = [];
+        window.assets.forEach(asset=>{
+          if (!asset) return;
+          if (selected.indexOf(asset.id) === -1) return;
+          const price = asset.price || 0;
+          const priceText = window.STATE.fullPrecision ? price.toFixed(2).replace('.', ' point ') : Math.floor(price).toString();
+          if (window.STATE.briefMode) parts.push(`${asset.name} at ${priceText}`);
+          else {
+            const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
+            parts.push(`${asset.name} at ${priceText}. Change ${change>=0?'up':'down'} by ${Math.abs(change).toFixed(2)} pips`);
+          }
+        });
+
+        if (!parts.length) { console.log('MarketEar: selected assets have no data yet'); return; }
+        const phrase = parts.join('. ') + '.';
+        const udp = new SpeechSynthesisUtterance(phrase);
+        udp.rate = 0.95;
+        const voices = speechSynthesis.getVoices() || [];
+        const chosen = voices.find(v => v.name === els.voiceSelect.value) || voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+        if (chosen) udp.voice = chosen;
+        speechSynthesis.speak(udp);
+        // reset canonical next time
+        window._marketEarNextAt = Date.now() + (window.STATE.intervalMs || 30000);
+        if (typeof resetCountdown === 'function') resetCountdown();
+        console.log('MarketEar: spoken ->', phrase);
+      } catch(e){
+        console.error('MarketEar: speakUpdate error', e);
+      }
     }
 
-    // Expose speakUpdate & updateUI globally
-    window.speakUpdate = speakUpdate;
-    window.updateUI = updateUI;
-
-    // Countdown & timer functions
+    // resetCountdown helper
     function resetCountdown(){
-      window.STATE.remainingTime = window.STATE.intervalMs;
-      els.countdownText.classList.remove('hidden');
-      els.countdownText.innerText = `Next in: ${formatTime(window.STATE.remainingTime)}`;
-    }
-    function startAudioTimer(){
-      // clear existing to prevent duplicates
-      if (window.STATE.timers && window.STATE.timers.audio) {
-        clearInterval(window.STATE.timers.audio);
-        window.STATE.timers.audio = null;
-      }
-      window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs);
-      // record for emergency cleanup
-      window._activeIntervals = window._activeIntervals || [];
-      window._activeIntervals.push(window.STATE.timers.audio);
-    }
-    function restartAudioTimer(){ if (window.STATE.isRunning) startAudioTimer(); }
-
-    function toggleAudio(){
-      if (!window.STATE.voiceReady) {
-        alert('TTS not ready yet. Click the "▶ CLICK TO ALLOW TTS" button first.');
-        return;
-      }
-      window.STATE.isRunning = !window.STATE.isRunning;
-      if (window.STATE.isRunning) {
-        els.toggleBtn.innerText = 'Stop Earing';
-        els.statusText.innerText = 'Live Earing';
-        startAudioTimer();
-        speakUpdate();
-      } else {
-        els.toggleBtn.innerText = 'Start Earing';
-        els.statusText.innerText = 'Ready';
-        if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
-        try{ window.speechSynthesis.cancel(); }catch(e){}
-        els.countdownText.classList.add('hidden');
-      }
+      window.STATE.remainingTime = window.STATE.intervalMs || 30000;
+      const el = document.getElementById('countdown-text');
+      if (el) el.innerText = 'Next in: ' + formatTime(window.STATE.remainingTime);
     }
 
-    // Attach event listeners
-    function setupListeners(){
-      els.toggleBtn.addEventListener('click', toggleAudio);
-      els.intervalSelect.addEventListener('change', () => {
-        updateSettings();
+    // Start/Stop handler using canonical scheduling
+    function attachToggleButton(){
+      const btn = els.toggleBtn;
+      // safe remove old handlers
+      btn.disabled = false;
+      btn.onclick = null;
+      btn.addEventListener('click', function(){
+        try {
+          window.STATE.isRunning = !window.STATE.isRunning;
+          if (window.STATE.isRunning) {
+            // ensure next timestamp
+            window._marketEarNextAt = Date.now() + (window.STATE.intervalMs || 30000);
+            // clear old
+            if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
+            // set interval
+            window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs || 30000);
+            // speak immediately
+            speakUpdate();
+            btn.innerText = 'Stop Earing';
+            els.statusText.innerText = 'Live Earing';
+            console.log('MarketEar: started announcements. Next at', new Date(window._marketEarNextAt).toLocaleTimeString());
+          } else {
+            // stop
+            if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
+            try { window.speechSynthesis.cancel(); } catch(e){}
+            btn.innerText = 'Start Earing';
+            els.statusText.innerText = 'Ready';
+            // hide countdown
+            document.getElementById('countdown-text').classList.add('hidden');
+            console.log('MarketEar: stopped announcements.');
+          }
+        } catch(e){ console.error('MarketEar: toggle error', e); }
       });
-      els.voiceSelect.addEventListener('change', updateSettings);
-      els.briefMode.addEventListener('change', updateSettings);
-      els.fullPrecision.addEventListener('change', updateSettings);
-      // initial settings populate
-      updateSettings();
     }
 
-    // Robust voice initialization & Test button + onboarding
-    function initVoiceRobust(){
-      function populateVoices(){
-        const voices = synth.getVoices() || [];
-        if (!voices.length) return;
+    // Countdown updater tied to _marketEarNextAt
+    function attachCountdownUpdater(){
+      if (window._marketEarCountdownInterval) { clearInterval(window._marketEarCountdownInterval); window._marketEarCountdownInterval = null; }
+      window._marketEarCountdownInterval = setInterval(function(){
+        try {
+          const el = document.getElementById('countdown-text');
+          if (!el) return;
+          if (!(window.STATE && window.STATE.isRunning)) { el.classList.add('hidden'); return; }
+          if (!window._marketEarNextAt) window._marketEarNextAt = Date.now() + (window.STATE.intervalMs || 30000);
+          const remainingMs = Math.max(0, window._marketEarNextAt - Date.now());
+          if (window.STATE) window.STATE.remainingTime = remainingMs;
+          el.classList.remove('hidden');
+          el.classList.remove('text-red-400','text-emerald-300');
+          if (remainingMs <= 5000) el.classList.add('text-red-400'); else el.classList.add('text-emerald-300');
+          el.innerText = 'Next in: ' + formatTime(remainingMs);
+        } catch(e){}
+      }, 250);
+    }
+
+    // Voice initialization & onboarding modal
+    function initVoice(){
+      const synth = window.speechSynthesis;
+      function populate(){
+        const v = synth.getVoices() || [];
+        if (!v.length) return;
         els.voiceSelect.innerHTML = '';
-        const en = voices.filter(v => v.lang && v.lang.startsWith('en'));
-        const rest = voices.filter(v => !(v.lang && v.lang.startsWith('en')));
-        [...en, ...rest].forEach(v=>{
+        const english = v.filter(x=>x.lang && x.lang.startsWith('en'));
+        const rest = v.filter(x=>!(x.lang && x.lang.startsWith('en')));
+        [...english,...rest].forEach(vc=>{
           const op = document.createElement('option');
-          op.value = v.name;
-          op.textContent = `${v.name} — ${v.lang}`;
+          op.value = vc.name;
+          op.textContent = `${vc.name} — ${vc.lang}`;
           els.voiceSelect.appendChild(op);
         });
         window.STATE.voiceReady = true;
@@ -338,64 +366,82 @@
         els.statusDot.classList.remove('bg-yellow-400');
         els.statusDot.classList.add('bg-sky-500');
       }
-      try { populateVoices(); } catch(e){}
-      synth.onvoiceschanged = populateVoices;
+      populate();
+      synth.onvoiceschanged = populate;
 
-      // Create a visible Test Voice + Allow button (only if modal not dismissed)
+      // onboarding
       if (!localStorage.getItem('marketEar_audio_allowed')) {
-        // show modal
         const modal = document.getElementById('__marketEarAllowModal');
-        modal.style.display = 'flex';
-        document.getElementById('__marketEarAllowBtn').onclick = () => {
+        modal.style.display = 'block';
+        document.getElementById('__marketEarAllowBtn').onclick = function(){
           try {
             const voices = synth.getVoices() || [];
-            const chosen = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+            const chosen = voices.find(v=>v.lang && v.lang.startsWith('en')) || voices[0];
             const u = new SpeechSynthesisUtterance('Market Ear test. If you hear this, TTS is allowed.');
             if (chosen) u.voice = chosen;
             u.rate = 0.95;
-            u.onend = () => { console.log('MarketEar: test TTS ended'); };
-            u.onerror = (e) => { console.error('MarketEar: test TTS error', e); };
+            u.onend = ()=>{ console.log('MarketEar: test TTS ended'); };
             synth.cancel();
             synth.speak(u);
-            // user gesture happened — enable controls & hide modal
             localStorage.setItem('marketEar_audio_allowed','1');
             window.STATE.voiceReady = true;
             els.toggleBtn.disabled = false;
             els.statusText.innerText = 'Ready';
             modal.style.display = 'none';
             console.log('MarketEar: Test spoken. Now click Start Earing to begin announcements.');
-          } catch(err){
-            console.error('MarketEar: test voice failed', err);
-          }
+          } catch(e){ console.error('MarketEar: test voice failed', e); }
         };
       } else {
-        // already accepted — ensure voices populated
-        try { populateVoices(); } catch(e){}
+        // already allowed
+        document.getElementById('__marketEarAllowModal').style.display = 'none';
       }
     }
 
-    // Initial render + listeners + voice init
+    // When interval changes, restart timer if running
+    function attachIntervalChangeHandler(){
+      els.intervalSelect.addEventListener('change', function(){
+        try {
+          window.STATE.intervalMs = parseInt(els.intervalSelect.value);
+          if (window.STATE.isRunning) {
+            // restart audio timer with new interval
+            if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
+            window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs);
+            window._marketEarNextAt = Date.now() + window.STATE.intervalMs;
+          } else {
+            window._marketEarNextAt = Date.now() + window.STATE.intervalMs;
+          }
+          updateSettings();
+        } catch(e){ console.warn('MarketEar: interval change error', e); }
+      });
+    }
+
+    // INITIAL SETUP
     renderAssets();
-    setupListeners();
-    initVoiceRobust();
+    updateSettings();
+    attachToggleButton();
+    attachCountdownUpdater();
+    attachIntervalChangeHandler();
+    initVoice();
 
-    // Keep UI synced every second (bridge will call updateUI on message too)
-    setInterval(()=>{ try{ updateUI(); if (window.STATE.isRunning){ window.STATE.remainingTime = Math.max(0, (window.STATE.remainingTime||window.STATE.intervalMs) - 1000); els.countdownText.innerText = `Next in: ${formatTime(window.STATE.remainingTime)}`; } } catch(e){} }, 1000);
+    // Keep UI updated from global assets (bridge will update these frequently)
+    setInterval(function(){ try{ updateUI(); } catch(e){} }, 900);
 
-    // Expose small debug helpers
-    window.MarketEarDebug = {
-      enable: ()=>{ window.STATE.voiceReady = true; els.toggleBtn.disabled = false; console.log('MarketEarDebug: enabled'); },
-      speakNow: ()=>{ window.STATE.isRunning = true; speakUpdate(); },
-      stopNow: ()=>{ window.STATE.isRunning = false; if(window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null;} window.speechSynthesis.cancel(); console.log('MarketEarDebug: stopped'); }
+    // Expose functions for debugging
+    window.MarketEar = {
+      speakNow: speakUpdate,
+      updateUI: updateUI,
+      renderAssets: renderAssets,
+      updateSettings: updateSettings,
+      stop: function(){ window.STATE.isRunning=false; if(window.STATE.timers && window.STATE.timers.audio){ clearInterval(window.STATE.timers.audio); window.STATE.timers.audio=null;} try{speechSynthesis.cancel();}catch(e){}; els.toggleBtn.innerText='Start Earing'; els.statusText.innerText='Ready'; }
     };
 
   })();
   </script>
 
-  <!-- LIVE BRIDGE (must exist in repo root) -->
+  <!-- Live bridge (your WS script). Keep this file in repo root /MarketEar/live-crypto.js -->
   <script src="live-crypto.js"></script>
 
-  <!-- Service worker registration (already points to /MarketEar/service-worker.js) -->
+  <!-- Service worker registration -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
@@ -408,6 +454,5 @@
       });
     }
   </script>
-
 </body>
 </html>
