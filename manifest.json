@@ -1,25 +1,21 @@
 {
   "name": "MarketEar Pro",
   "short_name": "MarketEar",
-  "description": "Eyes-free audio price announcements for BTC, ETH and XAU.",
   "start_url": "/MarketEar/",
   "scope": "/MarketEar/",
   "display": "standalone",
-  "background_color": "#0b1220",
+  "background_color": "#1a1e23",
   "theme_color": "#fcd34d",
-  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/MarketEar/icons/icon-192.png",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "/MarketEar/icons/icon-512.png",
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
   ]
 }
