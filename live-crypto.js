@@ -1,145 +1,90 @@
-// MarketEar Binance Live Crypto Feed Bridge (wss secure)
-// This version updates window.assets AND updates DOM elements directly
-// to ensure the UI shows live prices even if the page uses a different 'assets' variable.
+// live-crypto.js
+// MarketEar — Binance combined WebSocket bridge for BTC, ETH, XAU (XAUUSDT)
 
-console.log("MarketEar: Binance bridge initializing...");
+const MarketEarBinanceBridge = (function(){
+  const log = (...args) => console.log('MarketEar:', ...args);
 
-// Ensure window.assets exists (two assets only)
-if (!window.assets || !Array.isArray(window.assets)) {
-  window.assets = [
-    { id: "btcusd", name: "Bitcoin", symbol: "BTC/USD", price: 0, prevPrice: 0, high: 0, low: 999999 },
-    { id: "ethusd", name: "Ethereum", symbol: "ETH/USD", price: 0, prevPrice: 0, high: 0, low: 999999 }
+  // streams we want
+  const streams = [
+    'btcusdt@ticker',
+    'ethusdt@ticker',
+    'xauusdt@ticker'
   ];
-  console.log("MarketEar: window.assets created.");
-}
 
-// Map from asset id to Binance symbol
-const idToSymbol = { btcusd: "btcusdt", ethusd: "ethusdt" };
+  const base = 'wss://stream.binance.com:9443/stream?streams=';
+  const url = base + streams.join('/');
 
-// Streams: ticker gives last price field 'c'
-const streams = "btcusdt@ticker/ethusdt@ticker";
-const endpoint = "wss://stream.binance.com:9443/ws/" + streams;
+  window.assets = window.assets || [
+    { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+    { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+    { id: 'xauusd', name: 'Gold', symbol: 'XAU/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
+  ];
 
-let ws = null;
-let reconnectTimer = null;
+  function findAssetById(id){ return window.assets.find(a => a.id === id); }
 
-function safeFixed(n, digits=2){
-  if (!Number.isFinite(n)) return "0.00";
-  return Number(n).toFixed(digits);
-}
-
-function updateDomForAsset(asset) {
-  try {
-    // Price element
-    const priceEl = document.getElementById(`price-${asset.id}`);
-    if (priceEl) priceEl.innerText = safeFixed(asset.price, 2);
-
-    // High / Low elements
-    const highEl = document.getElementById(`high-${asset.id}`);
-    if (highEl) highEl.innerText = safeFixed(asset.high, 2);
-    const lowEl = document.getElementById(`low-${asset.id}`);
-    if (lowEl) lowEl.innerText = safeFixed(asset.low, 2);
-
-    // Change text (compare to prevPrice)
-    const changeEl = document.getElementById(`change-text-${asset.id}`);
-    if (changeEl) {
-      const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-      if (Math.abs(change) > 0.001) {
-        const isUp = change >= 0;
-        const sign = isUp ? '▲ +' : '▼ ';
-        changeEl.className = `text-sm font-semibold ${isUp ? 'text-emerald-500' : 'text-rose-500'}`;
-        changeEl.innerText = `${sign}${Math.abs(change).toFixed(2)} (live)`;
-      } else {
-        changeEl.className = 'text-sm font-semibold text-gray-500';
-        changeEl.innerText = `0.00`;
-      }
-    }
-
-    // Card border color (visual)
-    const cardEl = document.getElementById(`card-${asset.id}`);
-    if (cardEl) {
-      cardEl.classList.remove('border-emerald-500','border-rose-500','border-gray-600');
-      const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-      if (Math.abs(change) > 0.001) {
-        if (change >= 0) cardEl.classList.add('border-emerald-500');
-        else cardEl.classList.add('border-rose-500');
-      } else {
-        cardEl.classList.add('border-gray-600');
-      }
-    }
-  } catch(e){
-    // ignore DOM errors
-    // console.warn('MarketEar: DOM update error', e);
-  }
-}
-
-function start() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
-  console.log("MarketEar: Connecting to Binance…", endpoint);
-
-  try {
-    ws = new WebSocket(endpoint);
-  } catch(err) {
-    console.warn("MarketEar: WebSocket construction failed", err);
-    reconnectTimer = setTimeout(start, 3000);
-    return;
+  function updateAssetById(id, newPrice){
+    const asset = findAssetById(id);
+    if (!asset) { log('asset not found for id', id); return; }
+    asset.prevPrice = asset.price || newPrice;
+    asset.price = Number(newPrice);
+    if (!asset.high || asset.price > asset.high) asset.high = asset.price;
+    if (!asset.low || asset.price < asset.low) asset.low = asset.price;
+    log(asset.name + ' updated →', asset.price);
+    if (typeof updateUI === 'function') updateUI();
   }
 
-  ws.onopen = () => {
-    console.log("MarketEar: Binance WS open");
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-  };
+  function symbolToAssetId(symUpper){
+    const s = (symUpper || '').toUpperCase();
+    if (s === 'BTCUSDT') return 'btcusd';
+    if (s === 'ETHUSDT') return 'ethusd';
+    if (s === 'XAUUSDT') return 'xauusd';
+    if (s.endsWith('USDT')) return s.replace('USDT','USD').toLowerCase();
+    return null;
+  }
 
-  ws.onmessage = (ev) => {
+  let ws = null;
+
+  function connect(){
     try {
-      const data = JSON.parse(ev.data);
-      // ticker stream typically returns fields like: s (symbol), c (close/last price)
-      const symbol = (data.s || "").toLowerCase(); // 'BTCUSDT' -> 'btcusdt'
-      const price = parseFloat(data.c || data.p || data.c);
-      if (!symbol || !Number.isFinite(price)) return;
+      log('Binance bridge initializing...');
+      ws = new WebSocket(url);
 
-      // find asset id
-      const assetKey = Object.keys(idToSymbol).find(k => idToSymbol[k] === symbol);
-      if (!assetKey) return;
+      ws.addEventListener('open', () => { log('Binance WS open'); });
 
-      // ensure window.assets has the asset object
-      let asset = (window.assets || []).find(a => a.id === assetKey);
-      if (!asset) {
-        asset = { id: assetKey, name: assetKey.toUpperCase(), symbol: symbol.toUpperCase(), price: price, prevPrice: price, high: price, low: price };
-        window.assets.push(asset);
-      }
+      ws.addEventListener('message', (ev) => {
+        try {
+          const raw = JSON.parse(ev.data);
+          const payload = raw.data || raw;
+          const sym = (payload.s || payload.symbol || '').toUpperCase();
+          const priceStr = payload.c || payload.price || payload.p || null;
+          if (!sym || priceStr === null || priceStr === undefined) return;
+          const assetId = symbolToAssetId(sym);
+          if (!assetId) return;
+          const price = Number(priceStr);
+          if (isNaN(price)) return;
+          updateAssetById(assetId, price);
+        } catch(err){ log('bridge message parse error', err); }
+      });
 
-      // update values
-      asset.prevPrice = Number.isFinite(asset.price) ? asset.price : price;
-      asset.price = price;
-      if (!asset.high || price > asset.high) asset.high = price;
-      if (!asset.low || price < asset.low) asset.low = price;
+      ws.addEventListener('close', (ev) => {
+        log('Binance WS closed — reconnecting in 3s', ev.code, ev.reason);
+        setTimeout(() => connect(), 3000);
+      });
 
-      // Console debug line
-      console.log(`MarketEar: ${asset.name} updated → ${price}`);
+      ws.addEventListener('error', (err) => {
+        log('Binance WS error', err && err.message);
+        try { ws.close(); } catch(e){}
+      });
 
-      // Update page UI directly (ensures visible numbers)
-      updateDomForAsset(asset);
-
-      // Also call updateUI() if present so page-level logic can respond
-      try { if (typeof updateUI === "function") updateUI(); } catch(e){}
-
-    } catch(err) {
-      // ignore parse errors from other messages
-      // console.warn("MarketEar: parse error", err);
+    } catch(e) {
+      log('bridge connect error', e);
     }
-  };
+  }
 
-  ws.onerror = (err) => {
-    console.warn("MarketEar: WS error", err);
-  };
+  connect();
 
-  ws.onclose = () => {
-    console.warn("MarketEar: WS closed — reconnecting in 3s");
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(start, 3000);
+  return {
+    status: () => ws && ws.readyState,
+    close: () => { if (ws) ws.close(); }
   };
-}
-
-// Start the feed
-start();
+})();
