@@ -125,7 +125,7 @@
     briefMode: true,
     fullPrecision: false,
     voiceGender: 'female',
-    selectedAssets: ['btcusd'], // <--- DEFAULT: BTC selected
+    selectedAssets: ['btcusd'], // BTC selected by default
     timers: { audio: null },
     remainingTime: 0
   };
@@ -158,6 +158,27 @@
       ];
     }
 
+    // --- NEW: dynamic price formatter (keeps 2 decimals for >=1, 6 decimals for <1)
+    function formatPrice(n) {
+      const num = Number(n) || 0;
+      if (Math.abs(num) >= 1) return num.toFixed(2);
+      // small assets: show more precision
+      return num.toFixed(6);
+    }
+
+    // --- NEW: format for speech (replace dot with " point ")
+    function formatPriceForSpeech(n) {
+      const num = Number(n) || 0;
+      // if fullPrecision is on, speak decimals; otherwise speak integer part
+      if (window.STATE && window.STATE.fullPrecision) {
+        // choose decimals same as visual
+        const str = Math.abs(num) >= 1 ? num.toFixed(2) : num.toFixed(6);
+        return str.replace('.', ' point ');
+      } else {
+        return Math.floor(num).toString();
+      }
+    }
+
     function formatTime(ms){ const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const sec=s%60; return m>0?`${m}m ${sec}s`:`${sec}s`; }
 
     function renderAssets(){
@@ -171,14 +192,15 @@
             </div>
           </div>
           <div class="mb-3">
-            <span id="price-${asset.id}" class="text-3xl font-extrabold accent-yellow">${Number(asset.price).toFixed(2)}</span>
+            <span id="price-${asset.id}" class="text-3xl font-extrabold accent-yellow">${formatPrice(asset.price)}</span>
             <span class="text-sm text-gray-400 ml-2">${asset.symbol}</span>
           </div>
           <div class="flex justify-between items-center text-xs text-gray-400">
-            <div id="change-text-${asset.id}" class="text-sm font-semibold">--</div>
+            <!-- change text intentionally left blank (we removed change numbers) -->
+            <div id="change-text-${asset.id}" class="text-sm font-semibold text-gray-500"></div>
             <div>
-              H: <span id="high-${asset.id}">${Number(asset.high).toFixed(2)}</span>
-              L: <span id="low-${asset.id}">${Number(asset.low).toFixed(2)}</span>
+              H: <span id="high-${asset.id}">${formatPrice(asset.high)}</span>
+              L: <span id="low-${asset.id}">${formatPrice(asset.low)}</span>
             </div>
           </div>
         </div>
@@ -205,19 +227,23 @@
         const lowEl = document.getElementById(`low-${asset.id}`);
         const cardEl = document.getElementById(`card-${asset.id}`);
         if (!priceEl) return;
-        priceEl.innerText = Number(asset.price || 0).toFixed(2);
-        highEl && (highEl.innerText = Number(asset.high || 0).toFixed(2));
-        lowEl && (lowEl.innerText = Number(asset.low || 0).toFixed(2));
+        priceEl.innerText = formatPrice(asset.price || 0);
+        highEl && (highEl.innerText = formatPrice(asset.high || 0));
+        lowEl && (lowEl.innerText = formatPrice(asset.low || 0));
+
+        // We removed numeric "change" from cards — keep only color border to indicate direction
         const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
+        // if you still want a visual border for direction, keep this; otherwise you can comment it out
         if (Math.abs(change) > 0.0001) {
           const isUp = change >= 0;
-          changeEl.className = `text-sm font-semibold ${isUp ? 'text-emerald-500' : 'text-rose-500'}`;
-          changeEl.innerText = (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + ' (live)';
           cardEl.classList.remove('border-emerald-500','border-rose-500','border-gray-600');
           cardEl.classList.add(isUp ? 'border-emerald-500' : 'border-rose-500');
+          // keep changeEl blank
+          changeEl.className = 'text-sm font-semibold text-gray-500';
+          changeEl.innerText = '';
         } else {
           changeEl.className = 'text-sm font-semibold text-gray-500';
-          changeEl.innerText = '0.00';
+          changeEl.innerText = '';
           cardEl.classList.remove('border-emerald-500','border-rose-500');
           cardEl.classList.add('border-gray-600');
         }
@@ -244,12 +270,9 @@
           if (!asset) return;
           if (selected.indexOf(asset.id) === -1) return;
           const price = asset.price || 0;
-          const priceText = window.STATE.fullPrecision ? price.toFixed(2).replace('.', ' point ') : Math.floor(price).toString();
-          if (window.STATE.briefMode) parts.push(`${asset.name} at ${priceText}`);
-          else {
-            const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-            parts.push(`${asset.name} at ${priceText}. Change ${change>=0?'up':'down'} by ${Math.abs(change).toFixed(2)} pips`);
-          }
+          // announce only price (no change), with decimals when fullPrecision selected
+          const priceText = formatPriceForSpeech(price);
+          parts.push(`${asset.name} at ${priceText}`);
         });
         if (!parts.length) { console.log('MarketEar: selected assets have no data yet'); return; }
         const phrase = parts.join('. ') + '.';
