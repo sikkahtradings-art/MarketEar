@@ -18,6 +18,7 @@
     .market-card { background:#242930; border:1px solid #30363d; box-shadow:0 4px 6px rgba(0,0,0,0.2); }
     .accent-yellow{ color:#fcd34d; } .bg-accent-yellow{ background:#fcd34d; }
     .asset-toggle-visible { width:22px; height:22px; accent-color:#fcd34d; cursor:pointer; }
+    .muted-small { color:#9ca3af; font-size:0.85rem; }
   </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -31,7 +32,7 @@
         </div>
         <div>
           <h1 class="text-2xl font-extrabold text-white">MarketEar Pro</h1>
-          <p class="text-sm text-gray-400">Eyes-free audio price announcement engine</p>
+          <p class="text-sm text-gray-400">Eyes-Free Audio Price Announcement Engine</p>
         </div>
       </div>
 
@@ -56,7 +57,7 @@
   <main class="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
     <section class="mb-6">
       <h2 class="text-xl font-bold text-white">Active Portfolio</h2>
-      <p class="text-gray-400 text-sm">Toggle which assets are announced. Prices update live.</p>
+      <p class="text-gray-400 text-sm">Select The Asset To Be Announced</p>
     </section>
 
     <section id="assets-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -67,7 +68,7 @@
       <h3 class="text-lg font-semibold text-white mb-4">Audio & Content Settings</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="text-sm text-gray-300">Update Frequency</label>
+          <label class="text-sm text-gray-300 font-medium">Update Frequency</label>
           <select id="interval-select" class="w-full bg-gray-700 border border-gray-600 text-white rounded p-2">
             <option value="15000">15 Seconds</option>
             <option value="30000" selected>30 Seconds</option>
@@ -77,21 +78,22 @@
           </select>
         </div>
         <div>
-          <label class="text-sm text-gray-300">Voice</label>
+          <label class="text-sm text-gray-300 font-medium">Voice</label>
           <select id="voice-select" class="w-full bg-gray-700 border border-gray-600 text-white rounded p-2">
             <option value="default" selected>Default</option>
           </select>
         </div>
 
         <div>
-          <label class="flex items-center justify-between text-sm text-gray-300">
+          <label class="flex items-center justify-between text-sm text-gray-300 font-medium">
             <span>Full Price Precision</span>
             <input id="full-precision" type="checkbox" class="ml-2">
           </label>
+          <p class="muted-small mt-2">Tick to hear decimal points too.</p>
         </div>
 
         <div>
-          <label class="flex items-center justify-between text-sm text-gray-300">
+          <label class="flex items-center justify-between text-sm text-gray-300 font-medium">
             <span>Price Only (Brief)</span>
             <input id="brief-mode" type="checkbox" checked class="ml-2">
           </label>
@@ -101,7 +103,7 @@
   </main>
 
   <footer class="bg-gray-900 text-gray-500 py-4 text-center text-xs border-t border-gray-800">
-    <p>MarketEar Pro | For informational purposes only.</p>
+    <p>MarketEar Pro | For Informational Purposes Only.</p>
   </footer>
 
   <!-- Onboarding modal -->
@@ -109,7 +111,7 @@
     <div id="__marketEarAllowBox" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99998;">
       <div style="background:#0b1220; border:1px solid #2a2f36; padding:20px; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:#e6eef8; max-width:420px; text-align:center;">
         <h3 style="font-weight:800;margin-bottom:8px">Allow Audio</h3>
-        <p style="color:#b9c6d6;margin-bottom:12px">Click the button below so your browser allows MarketEar to speak price announcements. This is required only once.</p>
+        <p style="color:#b9c6d6;margin-bottom:12px">Click The Button Below So Your Browser Allows MarketEar To Speak Price Announcements. This Is Required Only Once.</p>
         <button id="__marketEarAllowBtn" style="background:#facc15;color:#111;padding:10px 14px;border-radius:8px;font-weight:700">▶ Enable Audio</button>
       </div>
     </div>
@@ -233,12 +235,10 @@
 
         // We removed numeric "change" from cards — keep only color border to indicate direction
         const change = (asset.price || 0) - (asset.prevPrice || asset.price || 0);
-        // if you still want a visual border for direction, keep this; otherwise you can comment it out
         if (Math.abs(change) > 0.0001) {
           const isUp = change >= 0;
           cardEl.classList.remove('border-emerald-500','border-rose-500','border-gray-600');
           cardEl.classList.add(isUp ? 'border-emerald-500' : 'border-rose-500');
-          // keep changeEl blank
           changeEl.className = 'text-sm font-semibold text-gray-500';
           changeEl.innerText = '';
         } else {
