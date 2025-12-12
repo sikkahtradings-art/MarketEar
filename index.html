@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MarketEar Pro | Eyes-Free Audio Trading</title>
 
-  <!-- Manifest for PWA -->
-  <link rel="manifest" href="/MarketEar/manifest.json">
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#fcd34d">
 
-  <!-- Tailwind CDN (ok for testing) -->
+  <!-- Tailwind CDN (fine for testing) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 
@@ -17,8 +17,6 @@
     body { font-family: 'Inter', sans-serif; background:#1a1e23; color:#e2e8f0; }
     .market-card { background:#242930; border:1px solid #30363d; box-shadow:0 4px 6px rgba(0,0,0,0.2); }
     .accent-yellow{ color:#fcd34d; } .bg-accent-yellow{ background:#fcd34d; }
-    .slider{ background:#4b5563; transition:.4s; }
-    .slider:before{ content:""; position:absolute; height:1rem; width:1rem; left:0.25rem; bottom:0.25rem; background:#fff; transition:.4s; border-radius:9999px; }
     .asset-toggle-visible { width:22px; height:22px; accent-color:#fcd34d; cursor:pointer; }
   </style>
 </head>
@@ -106,7 +104,7 @@
     <p>MarketEar Pro | For informational purposes only.</p>
   </footer>
 
-  <!-- Allow-audio onboarding modal -->
+  <!-- Onboarding modal -->
   <div id="__marketEarAllowModal" style="display:none">
     <div id="__marketEarAllowBox" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:99998;">
       <div style="background:#0b1220; border:1px solid #2a2f36; padding:20px; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:#e6eef8; max-width:420px; text-align:center;">
@@ -127,7 +125,7 @@
     briefMode: true,
     fullPrecision: false,
     voiceGender: 'female',
-    selectedAssets: [],
+    selectedAssets: ['xauusd'], // <--- DEFAULT: only Gold selected
     timers: { audio: null },
     remainingTime: 0
   };
@@ -147,7 +145,7 @@
       fullPrecision: document.getElementById('full-precision')
     };
 
-    // If no bridge-provided assets yet, set defaults (bridge will update them)
+    // If no bridge-provided assets yet, set defaults (bridge updates them)
     if (!window.assets || !Array.isArray(window.assets)) {
       window.assets = [
         { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
@@ -156,10 +154,8 @@
       ];
     }
 
-    // Utility
     function formatTime(ms){ const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const sec=s%60; return m>0?`${m}m ${sec}s`:`${sec}s`; }
 
-    // Render asset cards (with visible checkbox toggles)
     function renderAssets(){
       els.grid.innerHTML = window.assets.map(asset => `
         <div id="card-${asset.id}" class="market-card p-5 rounded-xl transition-all duration-300 border-l-4 border-gray-600">
@@ -184,21 +180,19 @@
         </div>
       `).join('');
 
-      // Attach change listeners for checkboxes
+      // set checkboxes according to STATE.selectedAssets (Gold only by default)
       document.querySelectorAll('.asset-toggle').forEach(cb=>{
+        cb.checked = window.STATE.selectedAssets.includes(cb.value);
         cb.addEventListener('change', function(){
-          // update selectedAssets
           window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
           console.log('MarketEar: selectedAssets ->', window.STATE.selectedAssets);
-          // call updateSettings to refresh UI text if needed
           updateSettings();
         });
       });
-      // sync initial selected list
+      // sync selectedAssets
       window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
     }
 
-    // Update UI prices & change
     function updateUI(){
       window.assets.forEach(asset=>{
         const priceEl = document.getElementById(`price-${asset.id}`);
@@ -226,34 +220,21 @@
       });
     }
 
-    // Update settings UI text
     function updateSettings(){
       window.STATE.intervalMs = parseInt(els.intervalSelect.value);
       window.STATE.briefMode = !!els.briefMode.checked;
       window.STATE.fullPrecision = !!els.fullPrecision.checked;
       const intervalText = els.intervalSelect.options[els.intervalSelect.selectedIndex].text;
       els.frequencyText.innerText = `Announcement: Every ${intervalText}`;
-      // set default selection if none
-      if (!window.STATE.selectedAssets || !window.STATE.selectedAssets.length) {
-        // if none checked, default to btc & eth if exist
-        const defaultIds = window.assets.map(a=>a.id).slice(0,2);
-        document.querySelectorAll('.asset-toggle').forEach(i=>{ i.checked = defaultIds.includes(i.value); });
-        window.STATE.selectedAssets = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
-      }
-      // update toggle button text
       els.toggleBtn.innerText = window.STATE.isRunning ? 'Stop Earing' : `Start Earing (Every ${intervalText})`;
     }
 
-    // TTS speak update (respects selectedAssets)
     function speakUpdate(){
       try {
         if (!window.STATE || !window.STATE.isRunning) return;
-        // cancel overlapping
         window.speechSynthesis.cancel();
-
         const selected = Array.from(document.querySelectorAll('.asset-toggle:checked')).map(i=>i.value);
         if (!selected.length) { console.log('MarketEar: no assets selected — skipping speak'); return; }
-
         const parts = [];
         window.assets.forEach(asset=>{
           if (!asset) return;
@@ -266,16 +247,14 @@
             parts.push(`${asset.name} at ${priceText}. Change ${change>=0?'up':'down'} by ${Math.abs(change).toFixed(2)} pips`);
           }
         });
-
         if (!parts.length) { console.log('MarketEar: selected assets have no data yet'); return; }
         const phrase = parts.join('. ') + '.';
-        const udp = new SpeechSynthesisUtterance(phrase);
-        udp.rate = 0.95;
+        const utt = new SpeechSynthesisUtterance(phrase);
+        utt.rate = 0.95;
         const voices = speechSynthesis.getVoices() || [];
         const chosen = voices.find(v => v.name === els.voiceSelect.value) || voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
-        if (chosen) udp.voice = chosen;
-        speechSynthesis.speak(udp);
-        // reset canonical next time
+        if (chosen) utt.voice = chosen;
+        speechSynthesis.speak(utt);
         window._marketEarNextAt = Date.now() + (window.STATE.intervalMs || 30000);
         if (typeof resetCountdown === 'function') resetCountdown();
         console.log('MarketEar: spoken ->', phrase);
@@ -284,41 +263,32 @@
       }
     }
 
-    // resetCountdown helper
     function resetCountdown(){
       window.STATE.remainingTime = window.STATE.intervalMs || 30000;
       const el = document.getElementById('countdown-text');
       if (el) el.innerText = 'Next in: ' + formatTime(window.STATE.remainingTime);
     }
 
-    // Start/Stop handler using canonical scheduling
     function attachToggleButton(){
       const btn = els.toggleBtn;
-      // safe remove old handlers
       btn.disabled = false;
       btn.onclick = null;
       btn.addEventListener('click', function(){
         try {
           window.STATE.isRunning = !window.STATE.isRunning;
           if (window.STATE.isRunning) {
-            // ensure next timestamp
             window._marketEarNextAt = Date.now() + (window.STATE.intervalMs || 30000);
-            // clear old
             if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
-            // set interval
             window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs || 30000);
-            // speak immediately
             speakUpdate();
             btn.innerText = 'Stop Earing';
             els.statusText.innerText = 'Live Earing';
             console.log('MarketEar: started announcements. Next at', new Date(window._marketEarNextAt).toLocaleTimeString());
           } else {
-            // stop
             if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
             try { window.speechSynthesis.cancel(); } catch(e){}
             btn.innerText = 'Start Earing';
             els.statusText.innerText = 'Ready';
-            // hide countdown
             document.getElementById('countdown-text').classList.add('hidden');
             console.log('MarketEar: stopped announcements.');
           }
@@ -326,7 +296,6 @@
       });
     }
 
-    // Countdown updater tied to _marketEarNextAt
     function attachCountdownUpdater(){
       if (window._marketEarCountdownInterval) { clearInterval(window._marketEarCountdownInterval); window._marketEarCountdownInterval = null; }
       window._marketEarCountdownInterval = setInterval(function(){
@@ -345,7 +314,6 @@
       }, 250);
     }
 
-    // Voice initialization & onboarding modal
     function initVoice(){
       const synth = window.speechSynthesis;
       function populate(){
@@ -369,7 +337,6 @@
       populate();
       synth.onvoiceschanged = populate;
 
-      // onboarding
       if (!localStorage.getItem('marketEar_audio_allowed')) {
         const modal = document.getElementById('__marketEarAllowModal');
         modal.style.display = 'block';
@@ -392,18 +359,15 @@
           } catch(e){ console.error('MarketEar: test voice failed', e); }
         };
       } else {
-        // already allowed
         document.getElementById('__marketEarAllowModal').style.display = 'none';
       }
     }
 
-    // When interval changes, restart timer if running
     function attachIntervalChangeHandler(){
       els.intervalSelect.addEventListener('change', function(){
         try {
           window.STATE.intervalMs = parseInt(els.intervalSelect.value);
           if (window.STATE.isRunning) {
-            // restart audio timer with new interval
             if (window.STATE.timers && window.STATE.timers.audio) { clearInterval(window.STATE.timers.audio); window.STATE.timers.audio = null; }
             window.STATE.timers.audio = setInterval(speakUpdate, window.STATE.intervalMs);
             window._marketEarNextAt = Date.now() + window.STATE.intervalMs;
@@ -423,10 +387,10 @@
     attachIntervalChangeHandler();
     initVoice();
 
-    // Keep UI updated from global assets (bridge will update these frequently)
+    // Keep UI updated from global assets (bridge will update window.assets)
     setInterval(function(){ try{ updateUI(); } catch(e){} }, 900);
 
-    // Expose functions for debugging
+    // Debug helpers
     window.MarketEar = {
       speakNow: speakUpdate,
       updateUI: updateUI,
@@ -438,10 +402,10 @@
   })();
   </script>
 
-  <!-- Live bridge (your WS script). Keep this file in repo root /MarketEar/live-crypto.js -->
+  <!-- Live bridge (must exist in repo root) -->
   <script src="live-crypto.js"></script>
 
-  <!-- Service worker registration -->
+  <!-- Register service worker -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
