@@ -150,7 +150,11 @@
       window.assets = [
         { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
         { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
-        { id: 'xauusd', name: 'Gold', symbol: 'XAU/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
+        { id: 'bnbusd', name: 'Binance Coin', symbol: 'BNB/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'solusd', name: 'Solana', symbol: 'SOL/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'xrpusd', name: 'XRP', symbol: 'XRP/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'adausd', name: 'Cardano', symbol: 'ADA/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
+        { id: 'dogeusd', name: 'Dogecoin', symbol: 'DOGE/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
       ];
     }
 
@@ -180,7 +184,7 @@
         </div>
       `).join('');
 
-      // set checkboxes according to STATE.selectedAssets (Gold only by default)
+      // set checkboxes according to STATE.selectedAssets
       document.querySelectorAll('.asset-toggle').forEach(cb=>{
         cb.checked = window.STATE.selectedAssets.includes(cb.value);
         cb.addEventListener('change', function(){
