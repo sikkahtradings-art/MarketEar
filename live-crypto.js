@@ -1,30 +1,37 @@
 // live-crypto.js
 // MarketEar — Binance combined WebSocket bridge for BTC, ETH, XAU (XAUUSDT)
+// Paste this entire file to /MarketEar/live-crypto.js and commit.
 
-const MarketEarBinanceBridge = (function(){
+(function(){
   const log = (...args) => console.log('MarketEar:', ...args);
 
-  // streams we want
+  // streams we want (lowercase)
   const streams = [
     'btcusdt@ticker',
     'ethusdt@ticker',
-    'xauusdt@ticker'
+    'xauusdt@ticker'   // <-- correct XAU/USDT stream
   ];
 
   const base = 'wss://stream.binance.com:9443/stream?streams=';
   const url = base + streams.join('/');
 
+  // Ensure window.assets exists and has the expected IDs
   window.assets = window.assets || [
     { id: 'btcusd', name: 'Bitcoin', symbol: 'BTC/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
     { id: 'ethusd', name: 'Ethereum', symbol: 'ETH/USD', price: 0, prevPrice: 0, high: 0, low: 0 },
     { id: 'xauusd', name: 'Gold', symbol: 'XAU/USD', price: 0, prevPrice: 0, high: 0, low: 0 }
   ];
 
-  function findAssetById(id){ return window.assets.find(a => a.id === id); }
+  function findAssetById(id){
+    return window.assets.find(a => a.id === id);
+  }
 
   function updateAssetById(id, newPrice){
     const asset = findAssetById(id);
-    if (!asset) { log('asset not found for id', id); return; }
+    if (!asset) {
+      log('asset not found for id', id);
+      return;
+    }
     asset.prevPrice = asset.price || newPrice;
     asset.price = Number(newPrice);
     if (!asset.high || asset.price > asset.high) asset.high = asset.price;
@@ -43,13 +50,16 @@ const MarketEarBinanceBridge = (function(){
   }
 
   let ws = null;
+  let reconnectTimer = null;
 
   function connect(){
     try {
       log('Binance bridge initializing...');
       ws = new WebSocket(url);
 
-      ws.addEventListener('open', () => { log('Binance WS open'); });
+      ws.addEventListener('open', () => {
+        log('Binance WS open');
+      });
 
       ws.addEventListener('message', (ev) => {
         try {
@@ -63,12 +73,15 @@ const MarketEarBinanceBridge = (function(){
           const price = Number(priceStr);
           if (isNaN(price)) return;
           updateAssetById(assetId, price);
-        } catch(err){ log('bridge message parse error', err); }
+        } catch(err){
+          log('bridge message parse error', err);
+        }
       });
 
       ws.addEventListener('close', (ev) => {
-        log('Binance WS closed — reconnecting in 3s', ev.code, ev.reason);
-        setTimeout(() => connect(), 3000);
+        log('Binance WS closed — will reconnect in 3000ms', ev && ev.code, ev && ev.reason);
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, 3000);
       });
 
       ws.addEventListener('error', (err) => {
@@ -78,13 +91,17 @@ const MarketEarBinanceBridge = (function(){
 
     } catch(e) {
       log('bridge connect error', e);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 3000);
     }
   }
 
+  // start connection
   connect();
 
-  return {
-    status: () => ws && ws.readyState,
-    close: () => { if (ws) ws.close(); }
+  // expose minimal control
+  window.MarketEarBinanceBridge = {
+    status: () => ws ? ws.readyState : null,
+    close: () => { try { if (ws) ws.close(); } catch(e){} }
   };
 })();
