@@ -1,10 +1,13 @@
 {
   "name": "MarketEar Pro",
   "short_name": "MarketEar",
-  "start_url": "/MarketEar/",
+  "description": "Eyes-Free Audio Price Announcement Engine For Traders",
+  "start_url": "/MarketEar/index.html",
   "scope": "/MarketEar/",
   "display": "standalone",
   "background_color": "#1a1e23",
   "theme_color": "#fcd34d",
-  "description": "Eyes-Free & Hands-Free Live Price Announcer for Traders. BTC, ETH, XAU realtime audio alerts."
+  "orientation": "portrait",
+  "lang": "en",
+  "dir": "ltr"
 }
